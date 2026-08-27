@@ -16,6 +16,10 @@ import {
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
 import { usd, n0, fecha, hoyISO } from "@/lib/format"
+// The qty <-> bultos conversion is the same rule as on an invoice, so it comes
+// from the same tested module. Only `product` lines convert; charges carry
+// neither packages nor a unit of measure.
+import { sincroniza, convierteBultos } from "@/lib/lineas"
 
 /**
  * One page for the three states a purchase can be in:
@@ -35,16 +39,26 @@ const numero = (v) => {
   return Number.isFinite(x) ? x : 0
 }
 
-const lineaProducto = (p) => ({
-  id: nuevoId(),
-  type: "product",
-  product_id: p.id,
-  sku: p.sku,
-  nombre: p.description || p.sku,
-  description: "",
-  qty_unit: 1,
-  cost_unit: p.cost_price ?? "",
-})
+// NOTE the naming trap: `qty` here is the QUANTITY on the line (it maps to the
+// column entry.qty_unit), while `piezasPorBulto` is product.qty_unit — pieces
+// per package. Same name in the database, two different meanings.
+const lineaProducto = (p) => {
+  const piezasPorBulto = Number(p.qty_unit) > 0 ? Number(p.qty_unit) : 1
+  return {
+    id: nuevoId(),
+    type: "product",
+    product_id: p.id,
+    sku: p.sku,
+    nombre: p.description || p.sku,
+    description: "",
+    piezasPorBulto,
+    modo: "qty",
+    qty: 1,
+    bultos: Math.round((1 / piezasPorBulto) * 100) / 100,
+    unit: p.unit || "PZA",
+    cost_unit: p.cost_price ?? "",
+  }
+}
 const lineaCargo = () => ({
   id: nuevoId(),
   type: "charge",
@@ -52,7 +66,11 @@ const lineaCargo = () => ({
   sku: "",
   nombre: "",
   description: "",
-  qty_unit: 1,
+  piezasPorBulto: 1,
+  modo: "qty",
+  qty: 1,
+  bultos: null,
+  unit: "",
   cost_unit: "",
 })
 
@@ -97,7 +115,7 @@ export default function Entrada() {
     let vivo = true
     supabase
       .from("purchase")
-      .select("*, entry(*, product(sku,description))")
+      .select("*, entry(*, product(sku,description,unit,qty_unit))")
       .eq("id", id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -123,30 +141,44 @@ export default function Entrada() {
       cbm: compra.cbm ?? "",
     })
     setLineas(
-      (compra.entry ?? []).map((e) => ({
-        id: nuevoId(),
-        type: e.type,
-        product_id: e.product_id,
-        sku: e.product?.sku ?? "",
-        nombre: e.product?.description || e.product?.sku || "",
-        description: e.description ?? "",
-        qty_unit: e.qty_unit ?? 0,
-        cost_unit: e.cost_unit ?? "",
-      }))
+      (compra.entry ?? []).map((e) => {
+        const por = Number(e.product?.qty_unit) > 0 ? Number(e.product.qty_unit) : 1
+        return {
+          id: nuevoId(),
+          type: e.type,
+          product_id: e.product_id,
+          sku: e.product?.sku ?? "",
+          nombre: e.product?.description || e.product?.sku || "",
+          description: e.description ?? "",
+          piezasPorBulto: por,
+          modo: "qty",
+          qty: e.qty_unit ?? 0,
+          // Always derived — entry stores neither. product.qty_unit is the
+          // conversion factor, so this stays correct as long as the packaging
+          // has not changed; if it has, the line reflects the CURRENT packaging.
+          bultos: convierteBultos(e.type)
+            ? Math.round(((e.qty_unit ?? 0) / por) * 100) / 100
+            : null,
+          unit: e.product?.unit ?? "",
+          cost_unit: e.cost_unit ?? "",
+        }
+      })
     )
   }
 
   const cerrada = compra?.status === "closed"
   const editable = creando || (compra && !cerrada)
 
+  // sincroniza re-derives the partner field: typing units recomputes packages
+  // and vice versa, using piezasPorBulto. Charges are left alone (nulled).
   const set = (lid, patch) =>
-    setLineas((ls) => ls.map((l) => (l.id === lid ? { ...l, ...patch } : l)))
+    setLineas((ls) => ls.map((l) => (l.id === lid ? sincroniza(l, patch) : l)))
   const quitar = (lid) => setLineas((ls) => ls.filter((l) => l.id !== lid))
 
-  const importe = (l) => numero(l.qty_unit) * numero(l.cost_unit)
+  const importe = (l) => numero(l.qty) * numero(l.cost_unit)
   const productosL = lineas.filter((l) => l.type === "product")
   const cargosL = lineas.filter((l) => l.type === "charge")
-  const unidades = productosL.reduce((t, l) => t + numero(l.qty_unit), 0)
+  const unidades = productosL.reduce((t, l) => t + numero(l.qty), 0)
   const mercancia = productosL.reduce((t, l) => t + importe(l), 0)
   const gastos = cargosL.reduce((t, l) => t + importe(l), 0)
   const porUnidad = unidades ? gastos / unidades : 0
@@ -164,7 +196,7 @@ export default function Entrada() {
 
   const incompletas = lineas.filter(
     (l) =>
-      numero(l.qty_unit) <= 0 ||
+      numero(l.qty) <= 0 ||
       String(l.cost_unit ?? "") === "" ||
       (l.type === "product" ? !l.product_id : !l.description.trim())
   )
@@ -181,7 +213,11 @@ export default function Entrada() {
       type: l.type,
       product_id: l.type === "product" ? l.product_id : null,
       description: l.type === "product" ? null : l.description.trim(),
-      qty_unit: Math.round(numero(l.qty_unit)),
+      // internal `qty` maps to the column entry.qty_unit.
+      // bultos and unit are NOT sent: entry has no such columns. They are a
+      // capture aid only, re-derived from product.qty_unit whenever the line is
+      // loaded again. (The invoice side DOES store them — see migration-002.)
+      qty_unit: Math.round(numero(l.qty)),
       cost_unit: numero(l.cost_unit),
     })),
   })
@@ -234,8 +270,13 @@ export default function Entrada() {
   const campo = "h-8 rounded-full bg-newsprint px-3 text-sm outline-none"
   const tile = "block rounded-2xl bg-paper px-4 py-2.5"
   const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
-  const GRID =
-    "grid-cols-[minmax(0,1.7fr)_86px_100px_minmax(0,0.85fr)_minmax(0,0.85fr)_34px]"
+  // One grid per line shape, shared by header and rows so columns line up.
+  const GRID = {
+    product:
+      "grid-cols-[minmax(0,1.4fr)_112px_74px_74px_64px_88px_minmax(0,0.8fr)_minmax(0,0.8fr)_34px]",
+    charge: "grid-cols-[minmax(0,2fr)_74px_88px_minmax(0,0.8fr)_34px]",
+  }
+  const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
 
   return (
     <div className="flex flex-col gap-3">
@@ -403,10 +444,19 @@ export default function Entrada() {
             </div>
           )}
 
-          {lineas.length > 0 && (
-            <div className={cn("grid gap-2 px-3 pb-2", GRID, rotulo)}>
-              <div>Concepto</div>
-              <div className="text-right">Cantidad</div>
+          {/* Cantidad and Bultos sit side by side, and only products offer the
+              switch — a charge has no packaging to convert through. */}
+          {productosL.length > 0 && (
+            <div className={cn("grid items-end gap-2 px-3 pb-2", GRID.product, rotulo)}>
+              <div>Producto</div>
+              <div>Capturar por</div>
+              <div className="text-right">
+                Cantidad<span className="block text-[9px] tracking-normal normal-case">unidades</span>
+              </div>
+              <div className="text-right">
+                Bultos<span className="block text-[9px] tracking-normal normal-case">paquetes</span>
+              </div>
+              <div>Unidad</div>
               <div className="text-right">Costo u.</div>
               <div className="text-right">Importe</div>
               <div className="text-right">Costo final u.</div>
@@ -415,14 +465,105 @@ export default function Entrada() {
           )}
 
           <div className="flex flex-col gap-2">
-            {lineas.map((l) => (
-              <div key={l.id} className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID)}>
-                {l.type === "product" ? (
+            {lineas
+              .filter((l) => l.type === "product")
+              .map((l) => (
+                <div
+                  key={l.id}
+                  className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID.product)}
+                >
                   <div className="min-w-0">
                     <div className="truncate text-sm">{l.nombre}</div>
-                    <div className="text-[11px] text-neutral-700 tabular-nums">{l.sku}</div>
+                    <div className="text-[11px] text-neutral-700 tabular-nums">
+                      {l.sku} · {l.piezasPorBulto} por bulto
+                    </div>
                   </div>
-                ) : (
+
+                  <div className="inline-flex gap-0.5 rounded-full bg-newsprint p-0.5">
+                    {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
+                      <button
+                        key={m}
+                        onClick={() => editable && set(l.id, { modo: m })}
+                        disabled={!editable}
+                        className={cn(
+                          "rounded-full px-2 py-1 text-[11px]",
+                          l.modo === m ? "bg-ink text-paper" : "text-ink"
+                        )}
+                      >
+                        {etiqueta}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    value={l.qty}
+                    onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                    readOnly={!editable || l.modo === "bultos"}
+                    inputMode="numeric"
+                    className={cn(campo, "text-right tabular-nums", l.modo === "bultos" && "opacity-60")}
+                  />
+                  <input
+                    value={l.bultos ?? ""}
+                    onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
+                    readOnly={!editable || l.modo === "qty"}
+                    inputMode="decimal"
+                    className={cn(campo, "text-right tabular-nums", l.modo === "qty" && "opacity-60")}
+                  />
+                  <input
+                    value={l.unit ?? ""}
+                    onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
+                    readOnly={!editable}
+                    list="unidades-entrada"
+                    placeholder="PZA"
+                    className={cn(campo, "px-2 text-center")}
+                  />
+                  <input
+                    value={l.cost_unit}
+                    onChange={(e) => set(l.id, { cost_unit: e.target.value })}
+                    readOnly={!editable}
+                    inputMode="decimal"
+                    placeholder="Costo"
+                    className={cn(campo, "text-right tabular-nums")}
+                  />
+                  <div className="text-right text-sm tabular-nums">{usd(importe(l))}</div>
+                  <div className="text-right text-[15px] font-semibold tabular-nums">
+                    {usd(numero(l.cost_unit) + porUnidad)}
+                  </div>
+                  {editable ? (
+                    <button
+                      onClick={() => quitar(l.id)}
+                      title="Quitar renglón"
+                      className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+              ))}
+          </div>
+
+          {cargosL.length > 0 && (
+            <div className={cn("mt-3 grid items-end gap-2 px-3 pb-2", GRID.charge, rotulo)}>
+              <div>Gasto</div>
+              <div className="text-right">
+                Cantidad<span className="block text-[9px] tracking-normal normal-case">sin bultos</span>
+              </div>
+              <div className="text-right">Monto u.</div>
+              <div className="text-right">Importe</div>
+              <div />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {lineas
+              .filter((l) => l.type === "charge")
+              .map((l) => (
+                <div
+                  key={l.id}
+                  className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID.charge)}
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <Truck className="size-4 shrink-0 text-neutral-700" />
                     <input
@@ -433,40 +574,51 @@ export default function Entrada() {
                       className={cn(campo, "min-w-0 flex-1")}
                     />
                   </div>
-                )}
-                <input
-                  value={l.qty_unit}
-                  onChange={(e) => set(l.id, { qty_unit: e.target.value })}
-                  readOnly={!editable}
-                  inputMode="numeric"
-                  className={cn(campo, "text-right tabular-nums")}
-                />
-                <input
-                  value={l.cost_unit}
-                  onChange={(e) => set(l.id, { cost_unit: e.target.value })}
-                  readOnly={!editable}
-                  inputMode="decimal"
-                  placeholder="Costo"
-                  className={cn(campo, "text-right tabular-nums")}
-                />
-                <div className="text-right text-sm tabular-nums">{usd(importe(l))}</div>
-                <div className="text-right text-[15px] font-semibold tabular-nums">
-                  {l.type === "product" ? usd(numero(l.cost_unit) + porUnidad) : "—"}
+                  <input
+                    value={l.qty}
+                    onChange={(e) => set(l.id, { qty: e.target.value })}
+                    readOnly={!editable}
+                    inputMode="numeric"
+                    className={cn(campo, "text-right tabular-nums")}
+                  />
+                  <input
+                    value={l.cost_unit}
+                    onChange={(e) => set(l.id, { cost_unit: e.target.value })}
+                    readOnly={!editable}
+                    inputMode="decimal"
+                    placeholder="Monto"
+                    className={cn(campo, "text-right tabular-nums")}
+                  />
+                  <div className="text-right text-[15px] font-semibold tabular-nums">
+                    {usd(importe(l))}
+                  </div>
+                  {editable ? (
+                    <button
+                      onClick={() => quitar(l.id)}
+                      title="Quitar gasto"
+                      className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  ) : (
+                    <div />
+                  )}
                 </div>
-                {editable ? (
-                  <button
-                    onClick={() => quitar(l.id)}
-                    title="Quitar renglón"
-                    className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                ) : (
-                  <div />
-                )}
-              </div>
-            ))}
+              ))}
           </div>
+
+          {productosL.length > 0 && (
+            <p className="mt-2 px-3 text-[11px] text-neutral-700">
+              Los bultos se calculan al vuelo desde las piezas por bulto del SKU; no se guardan en
+              la entrada.
+            </p>
+          )}
+
+          <datalist id="unidades-entrada">
+            {UNIDADES.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
 
           {lineas.length === 0 && (
             <div className="rounded-2xl bg-paper p-10 text-center">

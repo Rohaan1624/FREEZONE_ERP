@@ -1,8 +1,10 @@
 import * as React from "react"
-import { Plus, Check, Trash2, X, Pencil, CircleAlert, Package } from "lucide-react"
+import { Link } from "react-router-dom"
+import { Plus, Check, Trash2, X, Pencil, CircleAlert, Package, ArrowRight } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
+import { Confirmar } from "@/components/confirmar"
 import {
   usd,
   n0,
@@ -32,6 +34,8 @@ export default function Productos() {
   const [busca, setBusca] = React.useState("")
   const [form, setForm] = React.useState(null)
   const [guardando, setGuardando] = React.useState(false)
+  const [aBorrar, setABorrar] = React.useState(null)
+  const [borrando, setBorrando] = React.useState(false)
 
   // Bumping this refetches. The fetch lives inside the effect with a liveness
   // guard so a response that lands after the user navigates away is dropped
@@ -96,9 +100,14 @@ export default function Productos() {
     cargar()
   }
 
-  async function borrar(p) {
+  async function borrar() {
+    const p = aBorrar
+    if (!p) return
     setError("")
+    setBorrando(true)
     const { data, error } = await supabase.from("product").delete().eq("id", p.id).select()
+    setBorrando(false)
+    setABorrar(null)
     if (error) {
       return setError(
         /foreign key/i.test(error.message)
@@ -318,8 +327,20 @@ export default function Productos() {
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-3">
         {visibles.map((p) => (
-          <article key={p.id} className="flex flex-col gap-3 rounded-[20px] bg-newsprint p-4">
-            <div className="flex items-start gap-3">
+          /* Stretched link, same as the client cards: a real <a> covering the
+             card with the action buttons layered above it, so right-click and
+             open-in-new-tab keep working and no <button> ends up inside an <a>. */
+          <article
+            key={p.id}
+            className="group relative flex cursor-pointer flex-col gap-3 rounded-[20px] bg-newsprint p-4 transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-ink"
+          >
+            <Link
+              to={`/productos/${p.id}`}
+              aria-label={`Ver movimientos de ${p.sku}`}
+              className="absolute inset-0 z-0 rounded-[20px]"
+            />
+
+            <div className="pointer-events-none relative z-10 flex items-start gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-paper">
                 <Package className="size-[21px] text-neutral-700" />
               </span>
@@ -342,7 +363,7 @@ export default function Productos() {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="pointer-events-none relative z-10 grid grid-cols-3 gap-2">
               <div className="rounded-xl bg-paper px-3 py-2">
                 <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">Costo</div>
                 <div className="text-[15px] font-semibold tabular-nums">
@@ -368,29 +389,49 @@ export default function Productos() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="pointer-events-none relative z-10 flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                Ver movimientos
+                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+              </span>
               <button
                 onClick={() => setForm({ ...p })}
-                className="flex items-center gap-1.5 rounded-full bg-paper px-3 py-1.5 text-[13px]"
+                title="Editar SKU"
+                className="pointer-events-auto relative z-20 ml-auto grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm"
               >
-                <Pencil className="size-3.5" />
-                Editar
+                <Pencil className="size-4" />
               </button>
               <button
-                onClick={() => borrar(p)}
+                onClick={() => setABorrar(p)}
                 disabled={Number(p.stock) !== 0}
                 title={
-                  Number(p.stock) !== 0 ? "Solo se puede eliminar un SKU con existencia 0" : "Eliminar"
+                  Number(p.stock) !== 0
+                    ? "Solo se puede eliminar un SKU con existencia 0"
+                    : "Eliminar SKU"
                 }
-                className="flex items-center gap-1.5 rounded-full bg-paper px-3 py-1.5 text-[13px] disabled:opacity-35"
+                className="pointer-events-auto relative z-20 grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm disabled:opacity-35 disabled:hover:shadow-none"
               >
-                <Trash2 className="size-3.5" />
-                Eliminar
+                <Trash2 className="size-4" />
               </button>
             </div>
           </article>
         ))}
       </div>
+
+      <Confirmar
+        abierto={Boolean(aBorrar)}
+        ocupado={borrando}
+        titulo={`¿Eliminar ${aBorrar?.sku ?? ""}?`}
+        descripcion="Esta acción no se puede deshacer."
+        detalles={[
+          "Se borra la ficha del producto de forma permanente.",
+          "Solo es posible si su existencia es 0 y no aparece en ninguna factura ni entrada; si aparece, el sistema lo impedirá para conservar el historial.",
+          "Sus movimientos dejarían de ser consultables — considera editarlo en lugar de eliminarlo.",
+        ]}
+        textoConfirmar="Eliminar SKU"
+        onConfirmar={borrar}
+        onCancelar={() => setABorrar(null)}
+      />
     </div>
   )
 }

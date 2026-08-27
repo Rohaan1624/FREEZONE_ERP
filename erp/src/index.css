@@ -234,3 +234,48 @@
     color: color-mix(in srgb, var(--foreground) 45%, transparent);
   }
 }
+
+/* ---------------------------------------------------------------- impresión */
+/* La factura y el packing list se imprimen desde el navegador ("Guardar como
+   PDF"), así que la hoja tiene que quedarse sola: sin barra de navegación, sin
+   fondo de papel, sin sombras. Todo lo que no es el documento lleva
+   `print:hidden` en su propio componente; esto ajusta la página. */
+@media print {
+  @page {
+    size: letter;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    /* el ERP vive en un contenedor con scroll; en papel debe fluir */
+    height: auto !important;
+  }
+
+  /* Los tokens de color son tinta sobre papel gris. En impresión el gris se
+     ve sucio y gasta tóner: la hoja va en blanco puro con texto negro. */
+  .hoja {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Sin esto Chrome descarta los bordes de la tabla y el documento pierde
+     su retícula por completo. */
+  .hoja table,
+  .hoja th,
+  .hoja td {
+    border-color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Una fila de la tabla nunca debe partirse entre dos páginas. */
+  .hoja tr {
+    break-inside: avoid;
+  }
+  .hoja thead {
+    display: table-header-group; /* repite el encabezado en cada página */
+  }
+}

@@ -1,13 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>erp</title>
+
+    <title>ERP ZL · Facturación e inventario</title>
+    <meta
+      name="description"
+      content="Sistema interno de facturación, inventario, compras y cuentas por cobrar."
+    />
+
+    <!-- Herramienta interna detrás de login: NO queremos que se indexe.
+         Un ERP en resultados de búsqueda solo invita a que lo sondeen. -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="apple-mobile-web-app-title" content="ERP ZL" />
+
+    <!-- La app es de un solo tema (tinta sobre papel); decirlo evita que el
+         navegador pinte controles en oscuro y desentonen. -->
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f3f2f2" />
+
+    <!-- Previsualización al compartir el enlace por WhatsApp o Slack -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ERP ZL" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:title" content="ERP ZL · Facturación e inventario" />
+    <meta
+      property="og:description"
+      content="Sistema interno de facturación, inventario, compras y cuentas por cobrar."
+    />
+    <meta property="og:image" content="/favicon.svg" />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- index.css hace @import de Source Serif 4 desde Google Fonts, lo que
+         encadena dos conexiones antes de que se vea texto. Esto las abre por
+         adelantado. crossorigin es obligatorio en gstatic (sirve las fuentes). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <style>
+      /* Pantalla de carga inline: sin esto se ve un flash blanco mientras
+         descarga el bundle. React reemplaza el contenido de #root al montar,
+         así que esto desaparece solo — no hace falta quitarlo por JS. */
+      html { background: #f3f2f2; }
+      body { margin: 0; }
+      #cargando {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        gap: 14px;
+        align-content: center;
+        background: #f3f2f2;
+        color: #201e1d;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      #cargando .marca {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: #201e1d;
+        color: #f3f2f2;
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      #cargando .barra {
+        width: 132px;
+        height: 4px;
+        border-radius: 999px;
+        background: #d7d3d3;
+        overflow: hidden;
+      }
+      #cargando .barra span {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: #605d5d;
+        animation: desliza 1.1s ease-in-out infinite;
+      }
+      @keyframes desliza {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(330%); }
+      }
+      /* Respeta a quien pidió menos movimiento en su sistema. */
+      @media (prefers-reduced-motion: reduce) {
+        #cargando .barra span { animation: none; width: 100%; opacity: 0.6; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="cargando">
+        <div class="marca">ZL</div>
+        <div class="barra"><span></span></div>
+      </div>
+    </div>
+
+    <noscript>
+      <div
+        style="
+          font-family: Georgia, serif;
+          max-width: 42ch;
+          margin: 15vh auto;
+          padding: 0 24px;
+          color: #201e1d;
+          text-align: center;
+        "
+      >
+        <h1 style="font-size: 21px; margin: 0 0 8px">Necesitas JavaScript</h1>
+        <p style="font-size: 14px; margin: 0; color: #605d5d">
+          Este sistema se ejecuta en el navegador. Actívalo para poder entrar.
+        </p>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

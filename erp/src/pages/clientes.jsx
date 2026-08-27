@@ -19,6 +19,8 @@ const VACIO = {
   email: "",
   client_type: "company",
   payment_terms: 0,
+  address: "",
+  country: "",
 }
 
 export default function Clientes() {
@@ -69,6 +71,9 @@ export default function Clientes() {
       email: form.email?.trim() || null,
       client_type: form.client_type,
       payment_terms: Number(form.payment_terms) || 0,
+      // Salen en la cabecera de la factura impresa (Dirección / País).
+      address: form.address?.trim() || null,
+      country: form.country?.trim() || null,
     }
 
     const q = form.id
@@ -219,6 +224,24 @@ export default function Clientes() {
                 value={form.email ?? ""}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="compras@cliente.com"
+                className={campo}
+              />
+            </label>
+            <label className={tile}>
+              <span className={rotulo}>Dirección</span>
+              <input
+                value={form.address ?? ""}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="PANAMA"
+                className={campo}
+              />
+            </label>
+            <label className={tile}>
+              <span className={rotulo}>País</span>
+              <input
+                value={form.country ?? ""}
+                onChange={(e) => setForm({ ...form, country: e.target.value })}
+                placeholder="PANAMA"
                 className={campo}
               />
             </label>

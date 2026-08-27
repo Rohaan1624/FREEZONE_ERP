@@ -11,6 +11,7 @@ import {
   Truck,
   Cuboid,
   CornerDownLeft,
+  Ship,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -42,6 +43,19 @@ const TABS = [
 ]
 
 const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
+
+// Cabecera de embarque: solo salen impresos, no afectan existencia ni saldo.
+// Viajan agrupados como p_doc (jsonb) para que agregar un campo más no cambie
+// la firma del RPC otra vez.
+const EMBARQUE = [
+  ["purchase_order", "Orden de compra", "00-154"],
+  ["salesperson", "Vendedor", "John Doe"],
+  ["consigned_to", "Consignado a", "PANAMA"],
+  ["marks", "Marcas", "S/M"],
+  ["dispatched", "Despachado", ""],
+  ["shipped_via", "Embarcado vía", ""],
+]
+const DOC_VACIO = Object.fromEntries(EMBARQUE.map(([k]) => [k, ""]))
 
 // One grid per line shape, shared by the header row and its rows so the
 // columns line up. Products get a "capturar por" switch because bultos and
@@ -79,6 +93,8 @@ export default function FacturaForm() {
   const [cargando, setCargando] = React.useState(editando)
   const [original, setOriginal] = React.useState(null)
   const [vence, setVence] = React.useState("")
+  const [doc, setDoc] = React.useState({ ...DOC_VACIO })
+  const [verEmbarque, setVerEmbarque] = React.useState(false)
 
   React.useEffect(() => {
     supabase
@@ -119,6 +135,10 @@ export default function FacturaForm() {
           setNotas(data.notes ?? "")
           setVence(data.due_date ?? "")
           setDescontar(data.status !== "draft")
+          setDoc(Object.fromEntries(EMBARQUE.map(([k]) => [k, data[k] ?? ""])))
+          // Si la factura ya trae datos de embarque, abre la sección para que
+          // no queden escondidos detrás de un colapsable.
+          setVerEmbarque(EMBARQUE.some(([k]) => data[k]))
           setLineas(
             desdeFilas(
               data.transaction ?? [],
@@ -195,6 +215,7 @@ export default function FacturaForm() {
         // '' clears the note; null would mean "leave it alone" server-side.
         p_notes: notas.trim(),
         p_due_date: vence || null,
+        p_doc: doc,
       }
       if (editando) {
         await rpc("update_invoice", { p_invoice_id: id, p_client_id: clienteId, ...comun })
@@ -348,6 +369,43 @@ export default function FacturaForm() {
           </span>
           <Cuboid className="ml-auto size-6" />
         </button>
+      </section>
+
+      {/* Datos de embarque — colapsado por defecto: son opcionales y la mayoría
+          de las facturas no los usan, pero cuando hacen falta salen impresos
+          tanto en la factura como en el packing list. */}
+      <section className="rounded-[22px] bg-newsprint p-6">
+        <button
+          onClick={() => setVerEmbarque((v) => !v)}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <Ship className="size-[18px] text-neutral-700" />
+          <span className="font-semibold">Datos de embarque</span>
+          <span className="text-[13px] text-neutral-700">
+            {EMBARQUE.filter(([k]) => doc[k]?.trim()).length || "ninguno"}
+            {EMBARQUE.filter(([k]) => doc[k]?.trim()).length ? " capturados" : ""} · opcionales,
+            solo se imprimen
+          </span>
+          <span className="ml-auto text-[13px]">{verEmbarque ? "Ocultar" : "Mostrar"}</span>
+        </button>
+
+        {verEmbarque && (
+          <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
+            {EMBARQUE.map(([k, etiqueta, ph]) => (
+              <label key={k} className="block rounded-2xl bg-paper px-4 py-2.5">
+                <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+                  {etiqueta}
+                </span>
+                <input
+                  value={doc[k] ?? ""}
+                  onChange={(e) => setDoc({ ...doc, [k]: e.target.value })}
+                  placeholder={ph}
+                  className="mt-0.5 w-full bg-transparent text-base outline-none"
+                />
+              </label>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.56fr)]">

@@ -10,7 +10,9 @@ import Empresa from '@/pages/empresa'
 import Clientes from '@/pages/clientes'
 import Cliente from '@/pages/cliente'
 import Productos from '@/pages/productos'
+import Producto from '@/pages/producto'
 import Factura from '@/pages/factura'
+import FacturaImprimir from '@/pages/factura-imprimir'
 import Entradas from '@/pages/entradas'
 import Entrada from '@/pages/entrada'
 import Ajustes from '@/pages/ajustes'
@@ -31,9 +33,11 @@ function App() {
           <Route path="facturas/nueva" element={<FacturaForm />} />
           <Route path="facturas/:id" element={<Factura />} />
           <Route path="facturas/:id/editar" element={<FacturaForm />} />
+          <Route path="facturas/:id/imprimir" element={<FacturaImprimir />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="clientes/:id" element={<Cliente />} />
           <Route path="productos" element={<Productos />} />
+          <Route path="productos/:id" element={<Producto />} />
           <Route path="entradas" element={<Entradas />} />
           <Route path="entradas/nueva" element={<Entrada />} />
           <Route path="entradas/ajustes" element={<Ajustes />} />

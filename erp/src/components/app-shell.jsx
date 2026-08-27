@@ -46,9 +46,9 @@ export function AppShell() {
     .join("")
 
   return (
-    <div className="min-h-svh bg-paper px-6 pt-4 pb-8 text-ink">
+    <div className="min-h-svh bg-paper px-6 pt-4 pb-8 text-ink print:bg-white print:p-0">
       <div className="mx-auto flex max-w-[1460px] flex-col gap-4">
-        <header className="flex items-center gap-4">
+        <header className="flex items-center gap-4 print:hidden">
           <div className="flex items-center gap-3">
             {empresa?.logo_url ? (
               <img
@@ -87,7 +87,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <nav className="inline-flex self-start gap-1.5 rounded-full bg-newsprint p-1.5">
+        <nav className="inline-flex self-start gap-1.5 rounded-full bg-newsprint p-1.5 print:hidden">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}

@@ -148,6 +148,16 @@ export default function Cliente() {
     (p) => p.amount
   )
 
+  // Invoices a payment can be applied to: issued ones, newest first, each with
+  // what it still owes. Drafts are excluded — they are not billed yet, and
+  // create_payment would be recording money against a document that owes nothing.
+  const aplicables = facturas
+    .filter((f) => f.status !== "draft")
+    .map((f) => ({ ...f, est: estadoFactura(f) }))
+    .sort((a, b) => (a.date_created < b.date_created ? 1 : -1))
+
+  const facturaElegida = aplicables.find((f) => f.id === pago?.invoice_id)
+
   const btn = "flex items-center gap-2 rounded-full px-4 py-2 text-sm disabled:opacity-40"
   const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
 
@@ -185,7 +195,9 @@ export default function Cliente() {
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
             <button
-              onClick={() => setPago({ amount: "", method: "bank_transfer", notes: "" })}
+              onClick={() =>
+                setPago({ amount: "", method: "bank_transfer", notes: "", invoice_id: "" })
+              }
               disabled={ocupado}
               className={cn(btn, "bg-ink text-paper")}
             >
@@ -239,7 +251,9 @@ export default function Cliente() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Registrar pago</h4>
             <span className="text-[13px] text-neutral-700">
-              se registra a cuenta del cliente, sin aplicar a una factura
+              {facturaElegida
+                ? `se aplica a ${facturaElegida.invoice_num}`
+                : "queda a cuenta del cliente"}
             </span>
             <div className="ml-auto flex gap-2">
               <button onClick={() => setPago(null)} className={cn(btn, "bg-paper")}>
@@ -254,7 +268,11 @@ export default function Cliente() {
                     p_client_id: id,
                     p_amount: monto,
                     p_payment_method: pago.method,
-                    p_invoice_id: null,
+                    // Optional: applying it to an invoice or leaving it on
+                    // account changes NOTHING for the balance — both are
+                    // subtracted by recalc_client_balance. The link only
+                    // records which document the money was meant for.
+                    p_invoice_id: pago.invoice_id || null,
                     p_notes: pago.notes.trim() || null,
                   })
                   setPago(null)
@@ -268,6 +286,30 @@ export default function Cliente() {
             </div>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
+            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+              <span className={rotulo}>Aplicar a</span>
+              <select
+                value={pago.invoice_id}
+                onChange={(e) => {
+                  const f = aplicables.find((x) => x.id === e.target.value)
+                  // Prefill with what that invoice still owes — the common case.
+                  // Editable afterwards, since partial payments are normal.
+                  setPago({
+                    ...pago,
+                    invoice_id: e.target.value,
+                    amount: f ? (f.est.saldo.eq(0) ? "" : f.est.saldo.toFixed(2)) : "",
+                  })
+                }}
+                className="mt-0.5 w-full bg-transparent text-base outline-none"
+              >
+                <option value="">Sin aplicar · a cuenta</option>
+                {aplicables.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.invoice_num} · {f.est.saldo.eq(0) ? "pagada" : `debe ${usd(f.est.saldo)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block rounded-2xl bg-paper px-4 py-2.5">
               <span className={rotulo}>Monto</span>
               <input
@@ -303,7 +345,9 @@ export default function Cliente() {
             </label>
           </div>
           <p className="mt-3 text-xs text-neutral-700">
-            Para aplicar un pago a una factura concreta, ábrela y usa «Registrar pago» ahí.
+            {facturaElegida
+              ? `Se registra contra ${facturaElegida.invoice_num}. Si pagas de más, el excedente queda a favor del cliente.`
+              : "Sin factura, el pago baja el saldo global del cliente y queda como «a cuenta». En ambos casos el saldo se recalcula igual."}
           </p>
         </section>
       )}

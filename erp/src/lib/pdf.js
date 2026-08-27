@@ -1,0 +1,257 @@
+/**
+ * Factura y packing list en PDF, generados en el navegador.
+ *
+ * Por qué no window.print(): el navegador NO permite forzar «Guardar como PDF»
+ * sin abrir su diálogo — es una restricción de seguridad deliberada. Para que
+ * el botón descargue de una vez hay que construir el PDF nosotros.
+ *
+ * jsPDF dibuja TEXTO VECTORIAL, no una captura de pantalla. Eso importa en una
+ * factura: el archivo se puede buscar, copiar y seleccionar, pesa ~20 KB en vez
+ * de ~1 MB, y no se pixela al hacer zoom. (html2canvas haría lo contrario.)
+ *
+ * Las fuentes estándar de jsPDF usan WinAnsi, que cubre Latin-1: los acentos y
+ * la ñ salen bien sin incrustar tipografías.
+ *
+ * El módulo se importa de forma DIFERIDA desde la página, así que estos ~150 KB
+ * no entran en el bundle inicial: se descargan la primera vez que alguien pulsa
+ * el botón.
+ */
+import { jsPDF } from "jspdf"
+import autoTable from "jspdf-autotable"
+
+import { usd, n2, n0, fecha } from "./format.js"
+import { mul, sumar, centavos } from "./dinero.js"
+
+const M = 14 // margen en mm, igual que la hoja en pantalla
+
+/** Nombre de archivo seguro: 1208/26 sería una ruta, no un nombre. */
+export const nombreArchivo = (prefijo, num) =>
+  `${prefijo} ${String(num ?? "").replace(/[\\/:*?"<>|]/g, "-")}`.trim()
+
+const texto = (v) => (v == null ? "" : String(v))
+
+function datosComunes(inv) {
+  const lineas = inv.transaction ?? []
+  // Los cargos son dinero, no bultos: van en la factura pero nunca en el
+  // packing list, que es lo que el almacén coteja contra las cajas.
+  const mercancia = lineas.filter((l) => l.type !== "charge")
+  const importe = (l) => centavos(mul(l.qty, l.unit_price))
+  return {
+    lineas,
+    mercancia,
+    importe,
+    totalBultos: lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0),
+    totalPeso: mercancia.reduce(
+      (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0),
+      0
+    ),
+    totalCubicaje: mercancia.reduce(
+      (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0),
+      0
+    ),
+    subtotal: sumar(lineas, importe),
+  }
+}
+
+const cantidad = (l) =>
+  `${n0(l.qty)}${l.unit ? ` ${l.unit}` : l.product?.unit ? ` ${l.product.unit}` : ""}`
+
+const etiqueta = (l) =>
+  l.type === "product" ? l.product?.description || l.product?.sku || "" : l.description || ""
+
+/* ------------------------------------------------------------------ FACTURA */
+
+export function pdfFactura(inv, empresa) {
+  const doc = new jsPDF({ unit: "mm", format: "letter" })
+  const emp = empresa ?? {}
+  const cli = inv.client ?? {}
+  const { lineas, importe, totalBultos, totalPeso, subtotal } = datosComunes(inv)
+  const ancho = doc.internal.pageSize.getWidth()
+  let y = M
+
+  // --- cabecera de la empresa ---
+  doc.setFont("helvetica", "bold").setFontSize(16)
+  doc.text(texto(emp.name).toUpperCase(), M, y + 4)
+  y += 9
+
+  doc.setFont("helvetica", "normal").setFontSize(8.5)
+  const cabecera = [
+    emp.tax_id ? `RUC. ${emp.tax_id}` : null,
+    ...texto(emp.address).split("\n").filter(Boolean),
+    [emp.contact ? `TEL: ${emp.contact}` : null, emp.email ? `E-MAIL: ${emp.email}` : null]
+      .filter(Boolean)
+      .join(" · ") || null,
+  ].filter(Boolean)
+  for (const l of cabecera) {
+    doc.text(l, M, y)
+    y += 4
+  }
+
+  y += 2
+  doc.setLineWidth(0.6).line(M, y, ancho - M, y)
+  y += 6
+
+  // --- dos columnas de datos ---
+  const col2 = ancho / 2 + 2
+  const filas = [
+    ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
+    ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
+    ["Vendido a:", inv.client_name ?? cli.name, "Consignado a:", inv.consigned_to],
+    ["Dirección:", cli.address, "Despachado:", inv.dispatched],
+    ["País:", cli.country, "Vendedor:", inv.salesperson],
+    [
+      "Términos de Pago:",
+      inv.due_date
+        ? cli.payment_terms
+          ? `Fact. Crédito (${cli.payment_terms} días)`
+          : `Vence ${fecha(inv.due_date)}`
+        : "Fact. Contado (0 días)",
+      "Embarcado vía:",
+      inv.shipped_via,
+    ],
+  ]
+  doc.setFontSize(9)
+  for (const [ka, va, kb, vb] of filas) {
+    doc.setFont("helvetica", "bold").text(ka, M, y)
+    doc.setFont("helvetica", "normal").text(texto(va), M + 32, y)
+    doc.setFont("helvetica", "bold").text(kb, col2, y)
+    doc.setFont("helvetica", "normal").text(texto(vb), col2 + 32, y)
+    y += 5.5
+  }
+
+  y += 3
+
+  autoTable(doc, {
+    startY: y,
+    head: [["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"]],
+    body: lineas.map((l) => [
+      l.bultos == null ? "" : n0(l.bultos),
+      texto(l.product?.sku),
+      etiqueta(l),
+      l.type === "charge" ? "" : cantidad(l),
+      usd(l.unit_price),
+      usd(importe(l)),
+    ]),
+    margin: { left: M, right: M },
+    styles: { font: "helvetica", fontSize: 9, lineColor: 0, lineWidth: 0.25, textColor: 0 },
+    headStyles: { fillColor: false, textColor: 0, fontStyle: "bold", halign: "center" },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 20 },
+      3: { cellWidth: 26 },
+      4: { halign: "right", cellWidth: 24 },
+      5: { halign: "right", cellWidth: 26 },
+    },
+  })
+
+  y = doc.lastAutoTable.finalY + 5
+  doc.setLineWidth(0.6).line(M, y, ancho - M, y)
+  y += 5
+
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "bold").text("Total Bultos:", M, y)
+  doc.setFont("helvetica", "normal").text(n0(totalBultos), M + 24, y)
+  doc.setFont("helvetica", "bold").text("Total Peso:", M + 45, y)
+  doc.setFont("helvetica", "normal").text(n2(totalPeso), M + 68, y)
+  doc.setFont("helvetica", "bold").text("Subtotal:", ancho - M - 40, y)
+  doc.setFont("helvetica", "normal").text(usd(subtotal), ancho - M, y, { align: "right" })
+
+  y += 7
+  doc.setFont("helvetica", "bold").setFontSize(11)
+  doc.text(`TOTAL: ${usd(inv.total)}`, ancho - M, y, { align: "right" })
+
+  if (inv.notes) {
+    y += 10
+    doc.setFont("helvetica", "bold").setFontSize(8.5).text("Notas:", M, y)
+    doc.setFont("helvetica", "normal")
+    doc.text(doc.splitTextToSize(texto(inv.notes), ancho - M * 2 - 14), M + 14, y)
+  }
+
+  return doc
+}
+
+/* ------------------------------------------------------------- PACKING LIST */
+
+export function pdfPackingList(inv, empresa) {
+  const doc = new jsPDF({ unit: "mm", format: "letter" })
+  const emp = empresa ?? {}
+  const cli = inv.client ?? {}
+  const { mercancia, totalBultos, totalPeso, totalCubicaje } = datosComunes(inv)
+  const ancho = doc.internal.pageSize.getWidth()
+  const centro = ancho / 2
+  let y = M + 4
+
+  doc.setFont("helvetica", "bold").setFontSize(12)
+  doc.text(texto(emp.name).toUpperCase(), centro, y, { align: "center" })
+  y += 6
+  doc.text("PACKING LIST (LISTA DE EMPAQUE)", centro, y, { align: "center" })
+  y += 9
+
+  doc.setFontSize(9)
+  const par = (k, v, x) => {
+    doc.setFont("helvetica", "bold").text(k, x, y)
+    const w = doc.getTextWidth(k)
+    doc.setFont("helvetica", "normal").text(texto(v), x + w + 2, y)
+  }
+  par("NOMBRE:", inv.client_name ?? cli.name, M)
+  y += 6
+  par("FECHA:", fecha(inv.date_created), M)
+  par("PEDIDO:", inv.purchase_order, M + 62)
+  par("FACTURA:", inv.invoice_num, M + 118)
+  y += 6
+  par("VENDEDOR:", inv.salesperson, M)
+  y += 6
+  par("DIRECCION:", cli.address, M)
+  par("MARCAS:", inv.marks, M + 118)
+  y += 6
+
+  autoTable(doc, {
+    startY: y,
+    head: [["BULTOS", "PESO", "CUBICAJE", "REFERENCIA", "DESCRIPCION", "CANTIDAD"]],
+    body: mercancia.map((l) => [
+      l.bultos == null ? "" : n0(l.bultos),
+      n2(Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0)),
+      (Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0)).toFixed(1),
+      texto(l.product?.sku),
+      etiqueta(l),
+      cantidad(l),
+    ]),
+    foot: [[n0(totalBultos), n2(totalPeso), totalCubicaje.toFixed(1), "", "", ""]],
+    margin: { left: M, right: M },
+    // Sin retícula completa: la muestra solo lleva líneas arriba y abajo del
+    // encabezado y sobre los totales.
+    theme: "plain",
+    styles: { font: "helvetica", fontSize: 9, textColor: 0, halign: "center" },
+    headStyles: {
+      fontStyle: "bold",
+      lineColor: 0,
+      lineWidth: { top: 0.3, bottom: 0.3 },
+    },
+    footStyles: { fontStyle: "bold", lineColor: 0, lineWidth: { top: 0.3 }, textColor: 0 },
+  })
+
+  y = doc.lastAutoTable.finalY + 8
+  doc.setFont("helvetica", "bold").setFontSize(10)
+  doc.text("FIN DE LA LISTA DE EMPAQUE", centro, y, { align: "center" })
+
+  // Bloque de firmas: la copia del almacén se firma a mano.
+  y += 26
+  const firmas = ["APROBADO POR", "SACADO POR", "VERIFICADO POR", "EMPACADO POR"]
+  const util = ancho - M * 2
+  const paso = util / firmas.length
+  doc.setFontSize(9)
+  firmas.forEach((t, i) => {
+    const cx = M + paso * i + paso / 2
+    doc.setLineWidth(0.3).line(cx - paso / 2 + 6, y, cx + paso / 2 - 6, y)
+    doc.setFont("helvetica", "bold").text(t, cx, y + 5, { align: "center" })
+  })
+
+  return doc
+}
+
+/** Genera y descarga. El nombre lleva el número de factura. */
+export function descargar(tipo, inv, empresa) {
+  const doc = tipo === "packing" ? pdfPackingList(inv, empresa) : pdfFactura(inv, empresa)
+  const nombre = nombreArchivo(tipo === "packing" ? "PackingList" : "Factura", inv.invoice_num)
+  doc.setProperties({ title: nombre, subject: `Cliente: ${inv.client_name ?? ""}` })
+  doc.save(`${nombre}.pdf`)
+}

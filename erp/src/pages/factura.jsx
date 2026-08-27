@@ -11,6 +11,7 @@ import {
   Undo2,
   X,
   Pencil,
+  Printer,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -132,6 +133,10 @@ export default function Factura() {
           </div>
 
           <div className="ml-auto flex flex-wrap gap-2">
+            <Link to={`/facturas/${id}/imprimir`} className={cn(btn, "bg-paper")}>
+              <Printer className="size-4" />
+              Imprimir
+            </Link>
             {/* No edit on a closed invoice — update_invoice refuses it. */}
             {!esCerrada && (
               <Link to={`/facturas/${id}/editar`} className={cn(btn, "bg-paper")}>

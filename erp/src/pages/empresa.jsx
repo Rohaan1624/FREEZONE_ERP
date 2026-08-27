@@ -14,13 +14,18 @@ import { supabase } from "@/lib/supabase"
  * would collide with folios already issued.
  */
 const CAMPOS = [
-  { k: "name", label: "Nombre de la empresa", placeholder: "ZL Freezone FZE", required: true },
-  { k: "contact", label: "Teléfono / contacto", placeholder: "+971 4 000 0000" },
-  { k: "email", label: "Correo", placeholder: "ventas@empresa.com", type: "email" },
+  { k: "name", label: "Nombre de la empresa", placeholder: "UNIVERSAL ZONA LIBRE, S.A.", required: true },
+  { k: "tax_id", label: "RUC", placeholder: "187251-1-393284 D.V. 20", mono: true },
+  { k: "contact", label: "Teléfono", placeholder: "441-4533" },
+  { k: "email", label: "Correo", placeholder: "uzonalibre@gmail.com", type: "email" },
   { k: "website", label: "Sitio web", placeholder: "empresa.com" },
   { k: "invoice_prefix", label: "Serie de folios", placeholder: "INV-", mono: true },
   { k: "logo_url", label: "URL del logo", placeholder: "https://…/logo.png", ancho: true },
 ]
+
+// Va aparte porque es multilínea: cada renglón se imprime tal cual en la
+// cabecera de la factura, igual que en la papelería.
+const CAMPO_DIRECCION = "address"
 
 export default function Empresa() {
   const { empresa, recargarEmpresa } = useOutletContext()
@@ -46,7 +51,9 @@ export default function Empresa() {
     setGuardado(false)
   }
 
-  const sucio = CAMPOS.some((c) => (form[c.k] ?? "") !== (empresa?.[c.k] ?? ""))
+  const sucio = [...CAMPOS.map((c) => c.k), CAMPO_DIRECCION].some(
+    (k) => (form[k] ?? "") !== (empresa?.[k] ?? "")
+  )
 
   async function guardar() {
     setError("")
@@ -56,7 +63,10 @@ export default function Empresa() {
     // Only the grantable columns are sent. Including next_invoice_num here
     // would fail with "permission denied for table company".
     const parche = Object.fromEntries(
-      CAMPOS.map((c) => [c.k, String(form[c.k] ?? "").trim() || null])
+      [...CAMPOS.map((c) => c.k), CAMPO_DIRECCION].map((k) => [
+        k,
+        String(form[k] ?? "").trim() || null,
+      ])
     )
     const { data, error } = await supabase
       .from("company")
@@ -118,6 +128,20 @@ export default function Empresa() {
             </label>
           ))}
         </div>
+
+        <label className="mt-2.5 block rounded-2xl bg-paper px-4 py-2.5">
+          <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">Dirección</span>
+          <textarea
+            value={form.address ?? ""}
+            onChange={(e) => set("address", e.target.value)}
+            rows={2}
+            placeholder={"LOCAL No. 3, CALLE 15 AVE D\nEDIFICIO PARVANI, ZONA LIBRE DE COLÓN"}
+            className="mt-0.5 w-full resize-y bg-transparent text-base outline-none"
+          />
+          <span className="text-[11px] text-neutral-700">
+            Un renglón por línea; se imprime igual en la factura.
+          </span>
+        </label>
 
         {error && (
           <div className="mt-3 flex items-center gap-2.5 rounded-[14px] bg-paper px-3 py-2.5 text-[13px]">
