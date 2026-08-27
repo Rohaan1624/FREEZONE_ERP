@@ -58,6 +58,13 @@ drop function if exists public.update_payment(uuid, numeric, text, uuid);
 drop function if exists public.create_invoice(uuid, text, jsonb, text, text);
 drop function if exists public.update_invoice(uuid, jsonb, text, uuid, text);
 
+-- migration-003: los datos de embarque llegan en un solo jsonb (p_doc) en vez
+-- de seis parámetros sueltos. Son metadatos del documento sin lógica asociada,
+-- así que agruparlos evita volver a cambiar la firma la próxima vez que la
+-- papelería pida un campo más.
+drop function if exists public.create_invoice(uuid, text, jsonb, text, text, date);
+drop function if exists public.update_invoice(uuid, jsonb, text, uuid, text, date);
+
 -- invoice.total and purchase.total used to be maintained by FOR EACH ROW
 -- triggers. They are plain functions now, called directly by the RPCs that
 -- write the lines. Drop the old machinery so re-applying this file is clean.
@@ -195,7 +202,12 @@ create or replace function public.create_invoice(
   p_lines       jsonb default '[]'::jsonb,
   p_status      text  default 'draft',
   p_notes       text  default null,
-  p_due_date    date  default null
+  p_due_date    date  default null,
+  -- Datos de embarque, todos opcionales:
+  --   {"purchase_order":"00-154","salesperson":"…","consigned_to":"…",
+  --    "marks":"…","dispatched":"…","shipped_via":"…"}
+  -- Una clave ausente se guarda como NULL y se imprime en blanco.
+  p_doc         jsonb default '{}'::jsonb
 )
 returns uuid
 language plpgsql
@@ -257,8 +269,15 @@ begin
    where c.id = p_client_id and c.user_id = v_uid;
 
   insert into public.invoice
-    (invoice_num, client_id, client_name, user_id, status, notes, due_date)
-  select v_num, c.id, c.name, v_uid, p_status, p_notes, v_due
+    (invoice_num, client_id, client_name, user_id, status, notes, due_date,
+     purchase_order, salesperson, consigned_to, marks, dispatched, shipped_via)
+  select v_num, c.id, c.name, v_uid, p_status, p_notes, v_due,
+         nullif(p_doc ->> 'purchase_order', ''),
+         nullif(p_doc ->> 'salesperson', ''),
+         nullif(p_doc ->> 'consigned_to', ''),
+         nullif(p_doc ->> 'marks', ''),
+         nullif(p_doc ->> 'dispatched', ''),
+         nullif(p_doc ->> 'shipped_via', '')
     from public.client c
    where c.id = p_client_id
      and c.user_id = v_uid
@@ -342,7 +361,10 @@ create or replace function public.update_invoice(
   p_notes      text default null,
   p_client_id  uuid default null,
   p_status     text default null,
-  p_due_date   date default null
+  p_due_date   date default null,
+  -- Igual que en create_invoice. Pasar NULL deja los datos como estaban;
+  -- pasar un objeto reemplaza SOLO las claves presentes.
+  p_doc        jsonb default null
 )
 returns void
 language plpgsql
@@ -402,6 +424,19 @@ begin
 
   if p_due_date is not null then
     update public.invoice set due_date = p_due_date where id = p_invoice_id;
+  end if;
+
+  -- coalesce por clave: lo que no venga en p_doc se queda como está, así que
+  -- un formulario parcial nunca borra datos que no mostraba.
+  if p_doc is not null then
+    update public.invoice
+       set purchase_order = coalesce(nullif(p_doc ->> 'purchase_order', ''), purchase_order),
+           salesperson    = coalesce(nullif(p_doc ->> 'salesperson', ''),    salesperson),
+           consigned_to   = coalesce(nullif(p_doc ->> 'consigned_to', ''),   consigned_to),
+           marks          = coalesce(nullif(p_doc ->> 'marks', ''),          marks),
+           dispatched     = coalesce(nullif(p_doc ->> 'dispatched', ''),     dispatched),
+           shipped_via    = coalesce(nullif(p_doc ->> 'shipped_via', ''),    shipped_via)
+     where id = p_invoice_id;
   end if;
 
   -- Re-point at a different client, re-snapshotting client_name with it.
@@ -1314,11 +1349,11 @@ grant select on public.stock_movement to authenticated;
 revoke execute on function public.invoice_footprint(uuid)                from public, anon, authenticated;
 revoke execute on function public.apply_stock_delta(uuid, jsonb, jsonb)  from public, anon, authenticated;
 
-revoke execute on function public.create_invoice(uuid, text, jsonb, text, text, date) from public, anon;
-grant  execute on function public.create_invoice(uuid, text, jsonb, text, text, date) to authenticated;
+revoke execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb) from public, anon;
+grant  execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb) to authenticated;
 
-revoke execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date) from public, anon;
-grant  execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date) to authenticated;
+revoke execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date, jsonb) from public, anon;
+grant  execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date, jsonb) to authenticated;
 
 revoke execute on function public.set_invoice_status(uuid, text) from public, anon;
 grant  execute on function public.set_invoice_status(uuid, text) to authenticated;

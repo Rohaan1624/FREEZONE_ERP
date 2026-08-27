@@ -20,6 +20,11 @@ create table public.company (
   email     text,
   logo_url  text,
 
+  -- Cabecera de los documentos impresos. Todos opcionales: una cuenta puede
+  -- operar sin ellos y las facturas simplemente salen con ese renglón en blanco.
+  tax_id    text,           -- RUC / identificación fiscal
+  address   text,           -- domicilio; los saltos de línea se imprimen tal cual
+
   -- Invoice numbering lives here rather than in a Postgres SEQUENCE so each
   -- account gets its own clean run of numbers with no gaps. create_invoice()
   -- bumps the counter with UPDATE ... RETURNING, which takes a row lock held
@@ -48,6 +53,9 @@ create table public.client (
   -- its due_date when one is raised; the invoice keeps its own copy so
   -- changing a client's terms never moves an existing invoice's due date.
   payment_terms integer not null default 0 check (payment_terms >= 0),
+  -- Para la cabecera de la factura impresa. Opcionales.
+  address      text,
+  country      text,
   balance      numeric(12,2) not null default 0,
   user_id      uuid not null default auth.uid()
                  references auth.users (id) on delete cascade
@@ -97,6 +105,16 @@ create table public.invoice (
   -- payment_terms at creation, but stored per invoice so it stays put.
   due_date      date,
   notes         text,
+
+  -- Datos de embarque que aparecen en la factura y el packing list. Son
+  -- metadatos del documento: NO afectan existencia, saldo ni totales, así que
+  -- todos son opcionales y salen en blanco si no se capturan.
+  purchase_order text,      -- Orden de Compra / PEDIDO
+  salesperson    text,      -- Vendedor
+  consigned_to   text,      -- Consignado a
+  marks          text,      -- Marcas
+  dispatched     text,      -- Despachado
+  shipped_via    text,      -- Embarcado vía
   user_id       uuid not null default auth.uid()
                   references auth.users (id) on delete cascade
 );
