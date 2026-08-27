@@ -32,13 +32,16 @@ const texto = (v) => (v == null ? "" : String(v))
 
 function datosComunes(inv) {
   const lineas = inv.transaction ?? []
-  // Los cargos son dinero, no bultos: van en la factura pero nunca en el
-  // packing list, que es lo que el almacén coteja contra las cajas.
+  // Los cargos son dinero, no bultos: no son un renglón de mercancía. En la
+  // factura salen desglosados entre el subtotal y el total, y en el packing
+  // list no salen nunca — esa lista se cotejará contra las cajas.
   const mercancia = lineas.filter((l) => l.type !== "charge")
+  const cargos = lineas.filter((l) => l.type === "charge")
   const importe = (l) => centavos(mul(l.qty, l.unit_price))
   return {
     lineas,
     mercancia,
+    cargos,
     importe,
     totalBultos: lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0),
     // product.weight_kg es el peso POR BULTO, no por pieza — así se pesa la
@@ -46,7 +49,9 @@ function datosComunes(inv) {
     // veces como piezas trae cada bulto (12 por caja -> 12x el peso real).
     totalPeso: mercancia.reduce((t, l) => t + peso(l), 0),
     totalCubicaje: mercancia.reduce((t, l) => t + cubicaje(l), 0),
-    subtotal: sumar(lineas, importe),
+    // El subtotal es SOLO mercancía: sumar aquí los cargos los contaría dos
+    // veces, porque abajo se listan uno por uno antes del total.
+    subtotal: sumar(mercancia, importe),
   }
 }
 
@@ -70,7 +75,7 @@ export function pdfFactura(inv, empresa) {
   const doc = new jsPDF({ unit: "mm", format: "letter" })
   const emp = empresa ?? {}
   const cli = inv.client ?? {}
-  const { lineas, importe, totalBultos, totalPeso, subtotal } = datosComunes(inv)
+  const { mercancia, cargos, importe, totalBultos, totalPeso, subtotal } = datosComunes(inv)
   const ancho = doc.internal.pageSize.getWidth()
   let y = M
 
@@ -129,11 +134,12 @@ export function pdfFactura(inv, empresa) {
   autoTable(doc, {
     startY: y,
     head: [["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"]],
-    body: lineas.map((l) => [
+    // Solo mercancía: los cargos van desglosados debajo del subtotal.
+    body: mercancia.map((l) => [
       l.bultos == null ? "" : n0(l.bultos),
       texto(l.product?.sku),
       etiqueta(l),
-      l.type === "charge" ? "" : cantidad(l),
+      cantidad(l),
       usd(l.unit_price),
       usd(importe(l)),
     ]),
@@ -160,9 +166,27 @@ export function pdfFactura(inv, empresa) {
   doc.setFont("helvetica", "bold").text("Subtotal:", ancho - M - 40, y)
   doc.setFont("helvetica", "normal").text(usd(subtotal), ancho - M, y, { align: "right" })
 
-  y += 7
+  // Cada cargo, con su concepto, entre el subtotal y el total. Van aquí y no
+  // en la tabla porque no son mercancía: no llevan bultos, referencia ni
+  // cantidad, y el cliente espera verlos como flete/seguro/manejo sumándose
+  // aparte a lo que compró.
+  const rotuloX = ancho - M - 70
+  for (const c of cargos) {
+    y += 5.5
+    const nombre = doc.splitTextToSize(texto(c.description) || "Cargo", 40)[0]
+    doc.setFont("helvetica", "normal").text(`${nombre}:`, rotuloX, y)
+    doc.text(usd(importe(c)), ancho - M, y, { align: "right" })
+  }
+
+  y += 4
+  if (cargos.length) {
+    doc.setLineWidth(0.3).line(rotuloX, y, ancho - M, y)
+    y += 3
+  }
+
   doc.setFont("helvetica", "bold").setFontSize(11)
-  doc.text(`TOTAL: ${usd(inv.total)}`, ancho - M, y, { align: "right" })
+  doc.text(`TOTAL: ${usd(inv.total)}`, ancho - M, y + 3, { align: "right" })
+  y += 3
 
   if (inv.notes) {
     y += 10
