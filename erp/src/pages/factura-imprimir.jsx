@@ -79,14 +79,13 @@ export default function FacturaImprimir() {
 
   const importe = (l) => centavos(mul(l.qty, l.unit_price))
   const totalBultos = lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0)
-  const totalPeso = mercancia.reduce(
-    (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0),
-    0
-  )
-  const totalCubicaje = mercancia.reduce(
-    (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0),
-    0
-  )
+  // product.weight_kg es POR BULTO: el peso del renglón son sus bultos por ese
+  // peso, no sus piezas. Un SKU de 12 por caja daría 12x de más.
+  // Igual el CBM: volumen POR BULTO, así que también va por bultos.
+  const peso = (l) => Number(l.bultos ?? 0) * Number(l.product?.weight_kg ?? 0)
+  const cubicaje = (l) => Number(l.bultos ?? 0) * Number(l.product?.cbm ?? 0)
+  const totalPeso = mercancia.reduce((t, l) => t + peso(l), 0)
+  const totalCubicaje = mercancia.reduce((t, l) => t + cubicaje(l), 0)
   const subtotal = sumar(lineas, importe)
 
   const terminos = inv.due_date
@@ -328,10 +327,10 @@ export default function FacturaImprimir() {
                       {l.bultos == null ? "" : n0(l.bultos)}
                     </td>
                     <td className="px-2 py-1 text-center tabular-nums">
-                      {n2(Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0))}
+                      {n2(peso(l))}
                     </td>
                     <td className="px-2 py-1 text-center tabular-nums">
-                      {(Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0)).toFixed(1)}
+                      {cubicaje(l).toFixed(1)}
                     </td>
                     <td className="px-2 py-1 text-center tabular-nums">{l.product?.sku ?? ""}</td>
                     <td className="px-2 py-1 text-center">{etiqueta(l)}</td>

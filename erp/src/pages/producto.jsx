@@ -126,8 +126,8 @@ export default function Producto() {
                 prod.sku,
                 prod.qty_unit > 1 ? `${prod.qty_unit} por bulto` : "suelto",
                 prod.unit ?? "PZA",
-                prod.weight_kg ? `${prod.weight_kg} kg` : null,
-                prod.cbm ? `${prod.cbm} CBM` : null,
+                prod.weight_kg ? `${prod.weight_kg} kg/bulto` : null,
+                prod.cbm ? `${prod.cbm} CBM/bulto` : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}

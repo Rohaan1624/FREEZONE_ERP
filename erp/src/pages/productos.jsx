@@ -277,7 +277,7 @@ export default function Productos() {
               </div>
             </div>
             <label className={tile}>
-              <span className={rotulo}>Peso (kg)</span>
+              <span className={rotulo}>Peso por bulto (kg)</span>
               <input
                 value={form.weight_kg ?? ""}
                 onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
@@ -285,9 +285,12 @@ export default function Productos() {
                 placeholder="9.4"
                 className={cn(campo, "tabular-nums")}
               />
+              <span className="text-[11px] text-neutral-700">
+                lo que pesa UN bulto, no una pieza
+              </span>
             </label>
             <label className={tile}>
-              <span className={rotulo}>CBM</span>
+              <span className={rotulo}>CBM por bulto</span>
               <input
                 value={form.cbm ?? ""}
                 onChange={(e) => setForm({ ...form, cbm: e.target.value })}
@@ -295,12 +298,17 @@ export default function Productos() {
                 placeholder="0.0450"
                 className={cn(campo, "tabular-nums")}
               />
+              <span className="text-[11px] text-neutral-700">
+                lo que cubica UN bulto, no una pieza
+              </span>
             </label>
           </div>
           <p className="mt-3 text-xs text-neutral-700">
             La existencia no se captura aquí: solo se mueve con facturas, entradas cerradas y
             ajustes, para que siempre exista un documento detrás de cada cambio. Piezas por bulto
-            es lo que convierte cantidad ⇄ bultos al facturar.
+            es lo que convierte cantidad ⇄ bultos al facturar. El <b>peso</b> y el <b>CBM</b> son
+            <b> por bulto</b>: así es como se pesa y se cubica la mercancía, y así es como el
+            packing list los suma (bultos × peso, no piezas × peso).
           </p>
           <datalist id="unidades-prod">
             {UNIDADES.map((u) => (

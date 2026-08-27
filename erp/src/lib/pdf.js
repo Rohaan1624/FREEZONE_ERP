@@ -41,17 +41,22 @@ function datosComunes(inv) {
     mercancia,
     importe,
     totalBultos: lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0),
-    totalPeso: mercancia.reduce(
-      (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0),
-      0
-    ),
-    totalCubicaje: mercancia.reduce(
-      (t, l) => t + Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0),
-      0
-    ),
+    // product.weight_kg es el peso POR BULTO, no por pieza — así se pesa la
+    // mercancía en la práctica. Multiplicar por qty inflaría el peso tantas
+    // veces como piezas trae cada bulto (12 por caja -> 12x el peso real).
+    totalPeso: mercancia.reduce((t, l) => t + peso(l), 0),
+    totalCubicaje: mercancia.reduce((t, l) => t + cubicaje(l), 0),
     subtotal: sumar(lineas, importe),
   }
 }
+
+/**
+ * Peso y volumen de un renglón. weight_kg y cbm son POR BULTO, así que ambos
+ * se multiplican por los bultos, nunca por las piezas: un SKU de 12 por caja
+ * daría 12x de más en las dos columnas. Sin bultos no hay forma de saberlo.
+ */
+const peso = (l) => Number(l.bultos ?? 0) * Number(l.product?.weight_kg ?? 0)
+const cubicaje = (l) => Number(l.bultos ?? 0) * Number(l.product?.cbm ?? 0)
 
 const cantidad = (l) =>
   `${n0(l.qty)}${l.unit ? ` ${l.unit}` : l.product?.unit ? ` ${l.product.unit}` : ""}`
@@ -209,8 +214,8 @@ export function pdfPackingList(inv, empresa) {
     head: [["BULTOS", "PESO", "CUBICAJE", "REFERENCIA", "DESCRIPCION", "CANTIDAD"]],
     body: mercancia.map((l) => [
       l.bultos == null ? "" : n0(l.bultos),
-      n2(Number(l.qty ?? 0) * Number(l.product?.weight_kg ?? 0)),
-      (Number(l.qty ?? 0) * Number(l.product?.cbm ?? 0)).toFixed(1),
+      n2(peso(l)),
+      cubicaje(l).toFixed(1),
       texto(l.product?.sku),
       etiqueta(l),
       cantidad(l),

@@ -72,6 +72,8 @@ create table public.product (
   unit         text,
   qty_unit     integer,
   stock        integer not null default 0,
+  -- POR BULTO, no por pieza: así se pesa y se cubica la mercancía en la
+  -- práctica, y así los suma el packing list (bultos x peso, no piezas x peso).
   weight_kg    numeric(12,3),   -- numeric, not float: money/weights must not drift
   cbm          numeric(12,4),   -- was INT; volume is fractional
   -- Reference prices. Nullable: a product can exist before it is priced.
