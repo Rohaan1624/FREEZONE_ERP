@@ -11,10 +11,12 @@ import {
   CircleAlert,
   Lock,
   CornerDownLeft,
+  PackagePlus,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
+import { CrearProducto } from "@/components/crear-rapido"
 import { usd, n0, fecha, hoyISO } from "@/lib/format"
 // The qty <-> bultos conversion is the same rule as on an invoice, so it comes
 // from the same tested module. Only `product` lines convert; charges carry
@@ -86,6 +88,7 @@ export default function Entrada() {
   const [ocupado, setOcupado] = React.useState(false)
   const [recarga, setRecarga] = React.useState(0)
   const [busca, setBusca] = React.useState("")
+  const [nuevoSku, setNuevoSku] = React.useState(false)
 
   const [cab, setCab] = React.useState({
     entry_no: "",
@@ -343,8 +346,8 @@ export default function Entrada() {
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2.5">
           {[
-            ["entry_no", "No. de entrada *", "ENT-2026-001", true],
-            ["provider", "Proveedor", "Shenzhen Trading Co"],
+            ["entry_no", "No. de entrada *", "ENT-0001", true],
+            ["provider", "Proveedor", "Proveedor Ejemplo"],
             ["origin", "Origen", "CN"],
             ["net_weight_kgs", "Peso neto (kg)", "900.500"],
             ["gross_weight_kgs", "Peso bruto (kg)", "1020.250"],
@@ -396,6 +399,14 @@ export default function Entrada() {
                   className="h-9 w-[210px] rounded-full bg-paper px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
                 />
                 <button
+                  onClick={() => setNuevoSku(true)}
+                  title="Crear un SKU sin salir de la entrada"
+                  className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-[13px]"
+                >
+                  <PackagePlus className="size-4" />
+                  Nuevo SKU
+                </button>
+                <button
                   onClick={() => setLineas((ls) => ls.concat([lineaCargo()]))}
                   className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-[13px]"
                 >
@@ -405,6 +416,18 @@ export default function Entrada() {
               </div>
             )}
           </div>
+
+          {editable && busca.trim() && sugerencias.length === 0 && (
+            <button
+              onClick={() => setNuevoSku(true)}
+              className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-paper p-3 text-left text-[13px] hover:shadow-sm"
+            >
+              <PackagePlus className="size-4 shrink-0" />
+              <span>
+                Ningún SKU coincide con «<b>{busca.trim()}</b>». Crearlo ahora.
+              </span>
+            </button>
+          )}
 
           {sugerencias.length > 0 && (
             <div className="mb-3 rounded-2xl bg-paper/60 p-2">
@@ -661,6 +684,17 @@ export default function Entrada() {
           )}
         </aside>
       </div>
+
+      <CrearProducto
+        abierto={nuevoSku}
+        skuInicial={busca.trim()}
+        onCancelar={() => setNuevoSku(false)}
+        onCreado={(p) => {
+          setProductos((ps) => [...ps, p].sort((a, b) => a.sku.localeCompare(b.sku)))
+          agregarProd(p)
+          setNuevoSku(false)
+        }}
+      />
     </div>
   )
 }

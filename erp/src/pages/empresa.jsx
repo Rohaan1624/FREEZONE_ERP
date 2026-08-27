@@ -14,10 +14,10 @@ import { supabase } from "@/lib/supabase"
  * would collide with folios already issued.
  */
 const CAMPOS = [
-  { k: "name", label: "Nombre de la empresa", placeholder: "UNIVERSAL ZONA LIBRE, S.A.", required: true },
-  { k: "tax_id", label: "RUC", placeholder: "187251-1-393284 D.V. 20", mono: true },
-  { k: "contact", label: "Teléfono", placeholder: "441-4533" },
-  { k: "email", label: "Correo", placeholder: "uzonalibre@gmail.com", type: "email" },
+  { k: "name", label: "Nombre de la empresa", placeholder: "Mi Empresa, S.A.", required: true },
+  { k: "tax_id", label: "RUC", placeholder: "000000-0-000000 D.V. 00", mono: true },
+  { k: "contact", label: "Teléfono", placeholder: "000-0000" },
+  { k: "email", label: "Correo", placeholder: "correo@miempresa.com", type: "email" },
   { k: "website", label: "Sitio web", placeholder: "empresa.com" },
   { k: "invoice_prefix", label: "Serie de folios", placeholder: "INV-", mono: true },
   { k: "logo_url", label: "URL del logo", placeholder: "https://…/logo.png", ancho: true },
@@ -135,7 +135,7 @@ export default function Empresa() {
             value={form.address ?? ""}
             onChange={(e) => set("address", e.target.value)}
             rows={2}
-            placeholder={"LOCAL No. 3, CALLE 15 AVE D\nEDIFICIO PARVANI, ZONA LIBRE DE COLÓN"}
+            placeholder={"Calle 1, Local 1\nCiudad, País"}
             className="mt-0.5 w-full resize-y bg-transparent text-base outline-none"
           />
           <span className="text-[11px] text-neutral-700">

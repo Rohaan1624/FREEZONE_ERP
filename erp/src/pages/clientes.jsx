@@ -194,7 +194,7 @@ export default function Clientes() {
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Acme Trading LLC"
+                placeholder="John Doe"
                 className={campo}
                 autoFocus
               />
@@ -213,7 +213,7 @@ export default function Clientes() {
               <input
                 value={form.contact ?? ""}
                 onChange={(e) => setForm({ ...form, contact: e.target.value })}
-                placeholder="+971 50 000 0000"
+                placeholder="000-0000"
                 className={campo}
               />
             </label>
@@ -223,7 +223,7 @@ export default function Clientes() {
                 type="email"
                 value={form.email ?? ""}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="compras@cliente.com"
+                placeholder="correo@cliente.com"
                 className={campo}
               />
             </label>
@@ -232,7 +232,7 @@ export default function Clientes() {
               <input
                 value={form.address ?? ""}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="PANAMA"
+                placeholder="Calle 1, Local 1"
                 className={campo}
               />
             </label>
@@ -241,7 +241,7 @@ export default function Clientes() {
               <input
                 value={form.country ?? ""}
                 onChange={(e) => setForm({ ...form, country: e.target.value })}
-                placeholder="PANAMA"
+                placeholder="País"
                 className={campo}
               />
             </label>

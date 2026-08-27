@@ -324,7 +324,7 @@ export default function Factura() {
               <input
                 value={pago.notes}
                 onChange={(e) => setPago({ ...pago, notes: e.target.value })}
-                placeholder="Cheque 88213 · SPEI 4471"
+                placeholder="Cheque 0001 · Ref. 0001"
                 className="mt-0.5 w-full bg-transparent text-base outline-none"
               />
             </label>

@@ -97,7 +97,7 @@ export function LoginForm({ className, onEntrar, onRecuperar, ...props }) {
                   name="correo"
                   type="email"
                   autoComplete="email"
-                  placeholder="ventas@empresa.com"
+                  placeholder="correo@miempresa.com"
                   value={correo}
                   onChange={(e) => setCorreo(e.target.value)}
                   autoFocus

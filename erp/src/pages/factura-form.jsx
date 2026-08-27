@@ -12,10 +12,13 @@ import {
   Cuboid,
   CornerDownLeft,
   Ship,
+  UserPlus,
+  PackagePlus,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
+import { CrearCliente, CrearProducto } from "@/components/crear-rapido"
 import { usd, n0, fecha, hoyISO, masDias } from "@/lib/format"
 import {
   lineaSuelta,
@@ -48,9 +51,9 @@ const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
 // Viajan agrupados como p_doc (jsonb) para que agregar un campo más no cambie
 // la firma del RPC otra vez.
 const EMBARQUE = [
-  ["purchase_order", "Orden de compra", "00-154"],
+  ["purchase_order", "Orden de compra", "OC-0001"],
   ["salesperson", "Vendedor", "John Doe"],
-  ["consigned_to", "Consignado a", "PANAMA"],
+  ["consigned_to", "Consignado a", "John Doe"],
   ["marks", "Marcas", "S/M"],
   ["dispatched", "Despachado", ""],
   ["shipped_via", "Embarcado vía", ""],
@@ -95,6 +98,8 @@ export default function FacturaForm() {
   const [vence, setVence] = React.useState("")
   const [doc, setDoc] = React.useState({ ...DOC_VACIO })
   const [verEmbarque, setVerEmbarque] = React.useState(false)
+  const [nuevoCliente, setNuevoCliente] = React.useState(false)
+  const [nuevoSku, setNuevoSku] = React.useState(false)
 
   React.useEffect(() => {
     supabase
@@ -282,21 +287,32 @@ export default function FacturaForm() {
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
-          <label className="block rounded-2xl bg-paper px-4 py-2.5">
+          <div className="rounded-2xl bg-paper px-4 py-2.5">
             <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">Cliente</span>
-            <select
-              value={clienteId}
-              onChange={(e) => elegirCliente(e.target.value)}
-              className="mt-0.5 w-full bg-transparent text-base outline-none"
-            >
-              {clientes.length === 0 && <option value="">Sin clientes — crea uno primero</option>}
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="flex items-center gap-2">
+              <select
+                value={clienteId}
+                onChange={(e) => elegirCliente(e.target.value)}
+                className="mt-0.5 min-w-0 flex-1 bg-transparent text-base outline-none"
+              >
+                {clientes.length === 0 && <option value="">Todavía no hay clientes</option>}
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {/* Alta sin salir: navegar a /clientes se llevaría los renglones. */}
+              <button
+                type="button"
+                onClick={() => setNuevoCliente(true)}
+                title="Crear un cliente sin salir de la factura"
+                className="grid size-7 shrink-0 place-items-center rounded-full bg-newsprint"
+              >
+                <UserPlus className="size-4" />
+              </button>
+            </div>
+          </div>
 
           <label className="block rounded-2xl bg-paper px-4 py-2.5">
             <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
@@ -428,20 +444,30 @@ export default function FacturaForm() {
                 ))}
               </div>
               {tab === "product" ? (
-                <input
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Enter adds the top hit, so a fast typist never leaves the
-                    // keyboard: type three letters, Enter, next SKU.
-                    if (e.key === "Enter" && sugerencias[0]) {
-                      e.preventDefault()
-                      agregar(sugerencias[0])
-                    }
-                  }}
-                  placeholder="Buscar SKU para agregar"
-                  className="ml-auto h-9 w-[250px] rounded-full bg-paper px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
-                />
+                <div className="ml-auto flex items-center gap-2">
+                  <input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter adds the top hit, so a fast typist never leaves the
+                      // keyboard: type three letters, Enter, next SKU.
+                      if (e.key === "Enter" && sugerencias[0]) {
+                        e.preventDefault()
+                        agregar(sugerencias[0])
+                      }
+                    }}
+                    placeholder="Buscar SKU para agregar"
+                    className="h-9 w-[250px] rounded-full bg-paper px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                  />
+                  <button
+                    onClick={() => setNuevoSku(true)}
+                    title="Crear un SKU sin salir de la factura"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-paper px-3 py-2 text-[13px]"
+                  >
+                    <PackagePlus className="size-4" />
+                    Nuevo SKU
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => setLineas((ls) => agrega(ls, lineaSuelta(tab)))}
@@ -456,6 +482,19 @@ export default function FacturaForm() {
             {/* A search result is not obviously an action, so say so outright:
                 a standing instruction, a per-row "Agregar" pill with a plus,
                 and a pointer cursor. Enter adds the first hit. */}
+            {/* Buscó algo y no existe: ofrecer crearlo con ese nombre ya puesto */}
+            {tab === "product" && busca.trim() && sugerencias.length === 0 && (
+              <button
+                onClick={() => setNuevoSku(true)}
+                className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-paper p-3 text-left text-[13px] hover:shadow-sm"
+              >
+                <PackagePlus className="size-4 shrink-0" />
+                <span>
+                  Ningún SKU coincide con «<b>{busca.trim()}</b>». Crearlo ahora.
+                </span>
+              </button>
+            )}
+
             {sugerencias.length > 0 && (
               <div className="mb-3 rounded-2xl bg-paper/60 p-2">
                 <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
@@ -702,6 +741,29 @@ export default function FacturaForm() {
           </div>
         </aside>
       </div>
+
+      <CrearCliente
+        abierto={nuevoCliente}
+        onCancelar={() => setNuevoCliente(false)}
+        onCreado={(c) => {
+          // Entra a la lista Y queda elegido: es justo para lo que se abrió.
+          setClientes((cs) => [...cs, c].sort((a, b) => a.name.localeCompare(b.name)))
+          setClienteId(c.id)
+          aplicarTerminos(String(c.payment_terms ?? 0))
+          setNuevoCliente(false)
+        }}
+      />
+
+      <CrearProducto
+        abierto={nuevoSku}
+        skuInicial={busca.trim()}
+        onCancelar={() => setNuevoSku(false)}
+        onCreado={(p) => {
+          setProductos((ps) => [...ps, p].sort((a, b) => a.sku.localeCompare(b.sku)))
+          agregar(p) // ya queda como renglón, sin buscarlo otra vez
+          setNuevoSku(false)
+        }}
+      />
     </div>
   )
 }

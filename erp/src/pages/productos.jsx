@@ -209,7 +209,7 @@ export default function Productos() {
               <input
                 value={form.sku}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                placeholder="ESP-120"
+                placeholder="ABC-100"
                 className={cn(campo, "tabular-nums")}
                 autoFocus
               />
@@ -219,7 +219,7 @@ export default function Productos() {
               <input
                 value={form.description ?? ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Esponja multiuso doble cara"
+                placeholder="Descripción del producto"
                 className={campo}
               />
             </label>
