@@ -73,9 +73,11 @@ export default function FacturaImprimir() {
   const emp = empresa ?? {}
   const lineas = inv.transaction ?? []
 
-  // Charges are money, not goods — they belong on the invoice but never on a
-  // packing list, which is what the warehouse checks the boxes against.
+  // Charges are money, not goods. On the invoice they are itemised between the
+  // subtotal and the total instead of sitting in the goods table, and they
+  // never reach the packing list, which the warehouse checks boxes against.
   const mercancia = lineas.filter((l) => l.type !== "charge")
+  const cargos = lineas.filter((l) => l.type === "charge")
 
   const importe = (l) => centavos(mul(l.qty, l.unit_price))
   const totalBultos = lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0)
@@ -86,7 +88,9 @@ export default function FacturaImprimir() {
   const cubicaje = (l) => Number(l.bultos ?? 0) * Number(l.product?.cbm ?? 0)
   const totalPeso = mercancia.reduce((t, l) => t + peso(l), 0)
   const totalCubicaje = mercancia.reduce((t, l) => t + cubicaje(l), 0)
-  const subtotal = sumar(lineas, importe)
+  // Solo mercancía: los cargos se listan aparte más abajo, así que sumarlos
+  // aquí los contaría dos veces.
+  const subtotal = sumar(mercancia, importe)
 
   const terminos = inv.due_date
     ? cli.payment_terms
@@ -227,7 +231,7 @@ export default function FacturaImprimir() {
                 </tr>
               </thead>
               <tbody>
-                {lineas.map((l) => (
+                {mercancia.map((l) => (
                   <tr key={l.id}>
                     <td className="border border-ink px-2 py-1.5 tabular-nums">
                       {l.bultos == null ? "" : n0(l.bultos)}
@@ -236,9 +240,7 @@ export default function FacturaImprimir() {
                       {l.product?.sku ?? ""}
                     </td>
                     <td className="border border-ink px-2 py-1.5">{etiqueta(l)}</td>
-                    <td className="border border-ink px-2 py-1.5 tabular-nums">
-                      {l.type === "charge" ? "" : cantidad(l)}
-                    </td>
+                    <td className="border border-ink px-2 py-1.5 tabular-nums">{cantidad(l)}</td>
                     <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
                       {usd(l.unit_price)}
                     </td>
@@ -252,18 +254,31 @@ export default function FacturaImprimir() {
 
             <hr className="mt-4 mb-2 border-0 border-t-2 border-ink" />
 
-            <div className="flex flex-wrap items-baseline gap-x-10 text-[12px]">
+            <div className="flex flex-wrap items-start gap-x-10 gap-y-2 text-[12px]">
               <span>
                 <b>Total Bultos:</b> {n0(totalBultos)}
               </span>
               <span>
                 <b>Total Peso:</b> {n2(totalPeso)}
               </span>
-              <span className="ml-auto">
-                <b>Subtotal:</b> {usd(subtotal)}
-              </span>
+              {/* Subtotal, cada cargo por separado y el total: una sola columna
+                  alineada para que los importes se lean hacia abajo. */}
+              <div className="ml-auto grid min-w-[210px] grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1">
+                <span className="font-bold">Subtotal:</span>
+                <span className="text-right tabular-nums">{usd(subtotal)}</span>
+                {cargos.map((c) => (
+                  <React.Fragment key={c.id}>
+                    <span>{c.description || "Cargo"}:</span>
+                    <span className="text-right tabular-nums">{usd(importe(c))}</span>
+                  </React.Fragment>
+                ))}
+                {cargos.length > 0 && <div className="col-span-2 border-t border-ink" />}
+                <span className="text-[13px] font-bold">TOTAL:</span>
+                <span className="text-right text-[13px] font-bold tabular-nums">
+                  {usd(inv.total)}
+                </span>
+              </div>
             </div>
-            <div className="mt-2 text-right text-[13px] font-bold">TOTAL: {usd(inv.total)}</div>
 
             {inv.notes && (
               <div className="mt-6 text-[11px]">
