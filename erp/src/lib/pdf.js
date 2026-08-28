@@ -21,6 +21,7 @@ import autoTable from "jspdf-autotable"
 
 import { usd, n2, n0, fecha } from "./format.js"
 import { mul, sumar, centavos } from "./dinero.js"
+import { costeo } from "./costeo.js"
 
 const M = 14 // margen en mm, igual que la hoja en pantalla
 
@@ -66,6 +67,46 @@ const cubicaje = (l) => Number(l.bultos ?? 0) * Number(l.product?.cbm ?? 0)
 const cantidad = (l) =>
   `${n0(l.qty)}${l.unit ? ` ${l.unit}` : l.product?.unit ? ` ${l.product.unit}` : ""}`
 
+/**
+ * Membrete de la empresa, arriba a la izquierda. Idéntico en la factura y en la
+ * entrada — misma papelería. Devuelve la y de continuación.
+ */
+function cabeceraEmpresa(doc, emp, y) {
+  doc.setFont("helvetica", "bold").setFontSize(16)
+  doc.text(texto(emp.name).toUpperCase(), M, y + 4)
+  y += 9
+
+  doc.setFont("helvetica", "normal").setFontSize(8.5)
+  const renglones = [
+    emp.tax_id ? `RUC. ${emp.tax_id}` : null,
+    ...texto(emp.address).split("\n").filter(Boolean),
+    [emp.contact ? `TEL: ${emp.contact}` : null, emp.email ? `E-MAIL: ${emp.email}` : null]
+      .filter(Boolean)
+      .join(" · ") || null,
+  ].filter(Boolean)
+  for (const l of renglones) {
+    doc.text(l, M, y)
+    y += 4
+  }
+  return y
+}
+
+/** Bloque de dos columnas clave/valor, como la cabecera de la factura. */
+function camposDosColumnas(doc, filas, ancho, y, salto = 5.5) {
+  const col2 = ancho / 2 + 2
+  doc.setFontSize(9)
+  for (const [ka, va, kb, vb] of filas) {
+    doc.setFont("helvetica", "bold").text(ka, M, y)
+    doc.setFont("helvetica", "normal").text(texto(va), M + 32, y)
+    if (kb) {
+      doc.setFont("helvetica", "bold").text(kb, col2, y)
+      doc.setFont("helvetica", "normal").text(texto(vb), col2 + 32, y)
+    }
+    y += salto
+  }
+  return y
+}
+
 const etiqueta = (l) =>
   l.type === "product" ? l.product?.description || l.product?.sku || "" : l.description || ""
 
@@ -79,55 +120,34 @@ export function pdfFactura(inv, empresa) {
   const ancho = doc.internal.pageSize.getWidth()
   let y = M
 
-  // --- cabecera de la empresa ---
-  doc.setFont("helvetica", "bold").setFontSize(16)
-  doc.text(texto(emp.name).toUpperCase(), M, y + 4)
-  y += 9
-
-  doc.setFont("helvetica", "normal").setFontSize(8.5)
-  const cabecera = [
-    emp.tax_id ? `RUC. ${emp.tax_id}` : null,
-    ...texto(emp.address).split("\n").filter(Boolean),
-    [emp.contact ? `TEL: ${emp.contact}` : null, emp.email ? `E-MAIL: ${emp.email}` : null]
-      .filter(Boolean)
-      .join(" · ") || null,
-  ].filter(Boolean)
-  for (const l of cabecera) {
-    doc.text(l, M, y)
-    y += 4
-  }
+  y = cabeceraEmpresa(doc, emp, y)
 
   y += 2
   doc.setLineWidth(0.6).line(M, y, ancho - M, y)
   y += 6
 
-  // --- dos columnas de datos ---
-  const col2 = ancho / 2 + 2
-  const filas = [
-    ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
-    ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
-    ["Vendido a:", inv.client_name ?? cli.name, "Consignado a:", inv.consigned_to],
-    ["Dirección:", cli.address, "Despachado:", inv.dispatched],
-    ["País:", cli.country, "Vendedor:", inv.salesperson],
+  y = camposDosColumnas(
+    doc,
     [
-      "Términos de Pago:",
-      inv.due_date
-        ? cli.payment_terms
-          ? `Fact. Crédito (${cli.payment_terms} días)`
-          : `Vence ${fecha(inv.due_date)}`
-        : "Fact. Contado (0 días)",
-      "Embarcado vía:",
-      inv.shipped_via,
+      ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
+      ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
+      ["Vendido a:", inv.client_name ?? cli.name, "Consignado a:", inv.consigned_to],
+      ["Dirección:", cli.address, "Despachado:", inv.dispatched],
+      ["País:", cli.country, "Vendedor:", inv.salesperson],
+      [
+        "Términos de Pago:",
+        inv.due_date
+          ? cli.payment_terms
+            ? `Fact. Crédito (${cli.payment_terms} días)`
+            : `Vence ${fecha(inv.due_date)}`
+          : "Fact. Contado (0 días)",
+        "Embarcado vía:",
+        inv.shipped_via,
+      ],
     ],
-  ]
-  doc.setFontSize(9)
-  for (const [ka, va, kb, vb] of filas) {
-    doc.setFont("helvetica", "bold").text(ka, M, y)
-    doc.setFont("helvetica", "normal").text(texto(va), M + 32, y)
-    doc.setFont("helvetica", "bold").text(kb, col2, y)
-    doc.setFont("helvetica", "normal").text(texto(vb), col2 + 32, y)
-    y += 5.5
-  }
+    ancho,
+    y
+  )
 
   y += 3
 
@@ -277,10 +297,156 @@ export function pdfPackingList(inv, empresa) {
   return doc
 }
 
+/* ------------------------------------------------------- ENTRADA / COSTEO -- */
+
+/**
+ * Entrada en papel: qué llegó, qué se pagó de gastos y en cuánto quedó costando
+ * cada SKU ya con el prorrateo encima.
+ *
+ * Es un documento INTERNO, no se le entrega a nadie — por eso lleva costos, que
+ * es justo lo que la factura nunca debe mostrar.
+ *
+ * Recibe los renglones tal como los tiene el formulario ({type, sku, nombre,
+ * qty, bultos, unit, cost_unit}), no la fila de la base, para que el papel diga
+ * exactamente lo que está viendo en pantalla quien le da a imprimir.
+ */
+export function pdfEntrada(compra, empresa) {
+  const doc = new jsPDF({ unit: "mm", format: "letter" })
+  const emp = empresa ?? {}
+  const lineas = compra.lineas ?? []
+  const ancho = doc.internal.pageSize.getWidth()
+
+  const productos = lineas.filter((l) => l.type === "product")
+  const cargos = lineas.filter((l) => l.type === "charge")
+  const { mercancia, gastos, total, unidades, factor, prorrateable, aterrizado } = costeo(lineas)
+  const totalBultos = sumar(productos, (l) => l.bultos ?? 0)
+  const importe = (l) => centavos(mul(l.qty, l.cost_unit))
+
+  let y = M
+  y = cabeceraEmpresa(doc, emp, y)
+
+  y += 2
+  doc.setLineWidth(0.6).line(M, y, ancho - M, y)
+  y += 6
+
+  y = camposDosColumnas(
+    doc,
+    [
+      ["Entrada No.:", compra.entry_no, "Peso neto (kg):", n2(compra.net_weight_kgs ?? 0)],
+      ["Proveedor:", compra.provider, "Peso bruto (kg):", n2(compra.gross_weight_kgs ?? 0)],
+      ["Origen:", compra.origin, "CBM:", texto(compra.cbm)],
+      [
+        "Fecha:",
+        fecha(compra.date_created),
+        "Estado:",
+        // Sin guión largo: las fuentes estándar de jsPDF son WinAnsi y U+2014
+        // queda fuera de Latin-1, así que se imprimiría como un hueco.
+        compra.status === "closed" ? "Recibida (ya subió al inventario)" : "Pendiente",
+      ],
+    ],
+    ancho,
+    y
+  )
+
+  y += 3
+
+  // Ocho columnas caben en carta a 8 pt. Los dos pares se leen en paralelo:
+  // lo capturado a la izquierda, lo aterrizado a la derecha.
+  autoTable(doc, {
+    startY: y,
+    head: [
+      [
+        "BULTOS",
+        "REFERENCIA",
+        "DESCRIPCIÓN",
+        "CANTIDAD",
+        "COSTO U.",
+        "IMPORTE",
+        "COSTO FINAL U.",
+        "IMPORTE FINAL",
+      ],
+    ],
+    body: productos.map((l) => [
+      l.bultos == null ? "" : n0(l.bultos),
+      texto(l.sku),
+      texto(l.nombre),
+      cantidad(l),
+      usd(l.cost_unit),
+      usd(importe(l)),
+      usd(aterrizado(l)),
+      usd(mul(l.qty, aterrizado(l))),
+    ]),
+    margin: { left: M, right: M },
+    styles: { font: "helvetica", fontSize: 8, lineColor: 0, lineWidth: 0.25, textColor: 0 },
+    headStyles: { fillColor: false, textColor: 0, fontStyle: "bold", halign: "center" },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 15 },
+      1: { cellWidth: 22 },
+      3: { halign: "right", cellWidth: 20 },
+      4: { halign: "right", cellWidth: 18 },
+      5: { halign: "right", cellWidth: 22 },
+      6: { halign: "right", cellWidth: 21, fontStyle: "bold" },
+      7: { halign: "right", cellWidth: 24, fontStyle: "bold" },
+    },
+  })
+
+  y = doc.lastAutoTable.finalY + 5
+  doc.setLineWidth(0.6).line(M, y, ancho - M, y)
+  y += 5
+
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "bold").text("Total Bultos:", M, y)
+  doc.setFont("helvetica", "normal").text(n0(totalBultos), M + 24, y)
+  doc.setFont("helvetica", "bold").text("Unidades:", M + 45, y)
+  doc.setFont("helvetica", "normal").text(n0(unidades), M + 66, y)
+  doc.setFont("helvetica", "bold").text("Mercancía:", ancho - M - 40, y)
+  doc.setFont("helvetica", "normal").text(usd(mercancia), ancho - M, y, { align: "right" })
+
+  // Cada gasto con su concepto, igual que los cargos en la factura: sumados en
+  // bloque no se puede auditar de dónde salió el prorrateo.
+  const rotuloX = ancho - M - 70
+  for (const c of cargos) {
+    y += 5.5
+    const nombre = doc.splitTextToSize(texto(c.description) || "Gasto", 40)[0]
+    doc.setFont("helvetica", "normal").text(`${nombre}:`, rotuloX, y)
+    doc.text(usd(importe(c)), ancho - M, y, { align: "right" })
+  }
+
+  y += 4
+  if (cargos.length) {
+    doc.setLineWidth(0.3).line(rotuloX, y, ancho - M, y)
+    y += 3
+  }
+
+  doc.setFont("helvetica", "bold").setFontSize(11)
+  doc.text(`COSTO EN ALMACÉN: ${usd(total)}`, ancho - M, y + 3, { align: "right" })
+  y += 9
+
+  // La frase que explica el resto de la hoja. Sin ella, el «costo final u.» es
+  // un número que nadie puede reconstruir dentro de seis meses.
+  doc.setFont("helvetica", "normal").setFontSize(8.5)
+  const nota = prorrateable
+    ? `Los gastos se reparten por valor: cada SKU absorbe la misma proporción que aporta a la ` +
+      `mercancía. Factor de costeo +${factor.minus(1).times(100).toFixed(1)}% ` +
+      `(${usd(gastos)} de gastos sobre ${usd(mercancia)} de mercancía).`
+    : "Sin mercancía valorizada no hay base para repartir los gastos: los costos finales son los capturados."
+  doc.text(doc.splitTextToSize(nota, ancho - M * 2), M, y)
+
+  return doc
+}
+
 /** Genera y descarga. El nombre lleva el número de factura. */
 export function descargar(tipo, inv, empresa) {
   const doc = tipo === "packing" ? pdfPackingList(inv, empresa) : pdfFactura(inv, empresa)
   const nombre = nombreArchivo(tipo === "packing" ? "PackingList" : "Factura", inv.invoice_num)
   doc.setProperties({ title: nombre, subject: `Cliente: ${inv.client_name ?? ""}` })
+  doc.save(`${nombre}.pdf`)
+}
+
+/** Igual, para la liquidación de una entrada. */
+export function descargarEntrada(compra, empresa) {
+  const doc = pdfEntrada(compra, empresa)
+  const nombre = nombreArchivo("Entrada", compra.entry_no)
+  doc.setProperties({ title: nombre, subject: `Proveedor: ${compra.provider ?? ""}` })
   doc.save(`${nombre}.pdf`)
 }

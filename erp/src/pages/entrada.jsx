@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useParams, useNavigate } from "react-router-dom"
+import { Link, useParams, useNavigate, useOutletContext } from "react-router-dom"
 import {
   ArrowLeft,
   Check,
@@ -12,16 +12,21 @@ import {
   Lock,
   CornerDownLeft,
   PackagePlus,
+  Download,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
 import { CrearProducto } from "@/components/crear-rapido"
 import { usd, n0, fecha, hoyISO } from "@/lib/format"
+import { mul } from "@/lib/dinero"
 // The qty <-> bultos conversion is the same rule as on an invoice, so it comes
 // from the same tested module. Only `product` lines convert; charges carry
 // neither packages nor a unit of measure.
 import { sincroniza, convierteBultos } from "@/lib/lineas"
+// El prorrateo de gastos vive aparte y probado: es la cifra con la que se
+// decide a qué precio vender, así que no puede ser una división suelta aquí.
+import { costeo } from "@/lib/costeo"
 
 /**
  * One page for the three states a purchase can be in:
@@ -80,6 +85,8 @@ export default function Entrada() {
   const { id } = useParams()
   const navigate = useNavigate()
   const creando = !id
+  // El membrete del PDF sale de la empresa que el layout ya tiene cargada.
+  const { empresa } = useOutletContext()
 
   const [productos, setProductos] = React.useState([])
   const [compra, setCompra] = React.useState(null)
@@ -178,14 +185,16 @@ export default function Entrada() {
     setLineas((ls) => ls.map((l) => (l.id === lid ? sincroniza(l, patch) : l)))
   const quitar = (lid) => setLineas((ls) => ls.filter((l) => l.id !== lid))
 
-  const importe = (l) => numero(l.qty) * numero(l.cost_unit)
   const productosL = lineas.filter((l) => l.type === "product")
   const cargosL = lineas.filter((l) => l.type === "charge")
-  const unidades = productosL.reduce((t, l) => t + numero(l.qty), 0)
-  const mercancia = productosL.reduce((t, l) => t + importe(l), 0)
-  const gastos = cargosL.reduce((t, l) => t + importe(l), 0)
-  const porUnidad = unidades ? gastos / unidades : 0
-  const total = mercancia + gastos
+
+  // Los gastos se reparten POR VALOR: cada SKU absorbe la misma proporción de
+  // gastos que aporta de mercancía, así que todos suben el mismo porcentaje.
+  const { mercancia, gastos, total, unidades, factor, prorrateable, aterrizado, absorbido } =
+    costeo(lineas)
+  const importe = (l) => mul(l.qty, l.cost_unit)
+  // '1.2000' y '+20.0%' dicen lo mismo; el porcentaje es el que la gente lee.
+  const factorPct = factor ? factor.minus(1).times(100).toFixed(1) : null
 
   const q = busca.trim().toLowerCase()
   const sugerencias = q
@@ -243,6 +252,30 @@ export default function Entrada() {
     }
   }
 
+  // Se arma desde el estado del formulario, no desde la fila cargada, para que
+  // el papel diga lo mismo que la pantalla. Import diferido: jsPDF solo se
+  // descarga cuando alguien pulsa el botón.
+  async function descargarPdf() {
+    setError("")
+    setOcupado(true)
+    try {
+      const { descargarEntrada } = await import("@/lib/pdf")
+      descargarEntrada(
+        {
+          ...cab,
+          date_created: compra?.date_created ?? hoyISO(),
+          status: compra?.status ?? "active",
+          lineas,
+        },
+        empresa
+      )
+    } catch (e) {
+      setError(`No se pudo generar el PDF: ${e.message}`)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
   async function cerrar() {
     if (!confirm("Cerrar la entrada sube la existencia y ya no se podrá editar. ¿Continuar?"))
       return
@@ -275,8 +308,10 @@ export default function Entrada() {
   const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
   // One grid per line shape, shared by header and rows so columns line up.
   const GRID = {
+    // Dos pares que se leen en paralelo: costo u. -> importe (lo capturado) y
+    // costo final u. -> importe final (ya con los gastos encima).
     product:
-      "grid-cols-[minmax(0,1.4fr)_112px_74px_74px_64px_88px_minmax(0,0.8fr)_minmax(0,0.8fr)_34px]",
+      "grid-cols-[minmax(0,1.25fr)_104px_68px_68px_56px_82px_minmax(0,0.7fr)_82px_minmax(0,0.85fr)_34px]",
     charge: "grid-cols-[minmax(0,2fr)_74px_88px_minmax(0,0.8fr)_34px]",
   }
   const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
@@ -328,6 +363,17 @@ export default function Entrada() {
               >
                 <Check className="size-4" />
                 {ocupado ? "Guardando…" : creando ? "Crear entrada" : "Guardar cambios"}
+              </button>
+            )}
+            {!creando && (
+              <button
+                onClick={descargarPdf}
+                disabled={ocupado || lineas.length === 0}
+                title="Liquidación con el prorrateo de gastos — documento interno"
+                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm disabled:opacity-40"
+              >
+                <Download className="size-4" />
+                Descargar PDF
               </button>
             )}
             {!creando && !cerrada && (
@@ -482,7 +528,14 @@ export default function Entrada() {
               <div>Unidad</div>
               <div className="text-right">Costo u.</div>
               <div className="text-right">Importe</div>
-              <div className="text-right">Costo final u.</div>
+              <div className="text-right">
+                Costo final u.
+                <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
+              </div>
+              <div className="text-right">
+                Importe final
+                <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
+              </div>
               <div />
             </div>
           )}
@@ -549,8 +602,24 @@ export default function Entrada() {
                     className={cn(campo, "text-right tabular-nums")}
                   />
                   <div className="text-right text-sm tabular-nums">{usd(importe(l))}</div>
-                  <div className="text-right text-[15px] font-semibold tabular-nums">
-                    {usd(numero(l.cost_unit) + porUnidad)}
+                  <div className="text-right text-sm font-semibold tabular-nums">
+                    {usd(aterrizado(l))}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[15px] font-semibold tabular-nums">
+                      {usd(mul(l.qty, aterrizado(l)))}
+                    </div>
+                    {/* La diferencia contra el importe capturado: cuánto gasto
+                        cargó este renglón. Va aquí y no bajo el costo unitario
+                        porque es un importe, no un precio por unidad. */}
+                    {prorrateable && !absorbido(l).eq(0) && (
+                      <div
+                        title="Gastos prorrateados a este renglón"
+                        className="text-[11px] text-neutral-700 tabular-nums"
+                      >
+                        +{usd(absorbido(l))}
+                      </div>
+                    )}
                   </div>
                   {editable ? (
                     <button
@@ -648,7 +717,7 @@ export default function Entrada() {
               <Package className="mx-auto size-7 text-neutral-700" />
               <div className="mt-2 text-base font-semibold">Agrega los SKU que llegaron</div>
               <div className="text-[13px] text-neutral-700">
-                Captura cantidad y costo por unidad; los gastos se prorratean solos.
+                Captura cantidad y costo por unidad; los gastos se reparten solos, por valor.
               </div>
             </div>
           )}
@@ -659,8 +728,9 @@ export default function Entrada() {
           {[
             ["Unidades", n0(unidades)],
             ["Mercancía", usd(mercancia)],
-            ["Gastos", gastos ? usd(gastos) : "—"],
-            ["Gasto por unidad", porUnidad ? usd(porUnidad) : "—"],
+            ["Gastos", gastos.eq(0) ? "—" : usd(gastos)],
+            // Un solo número resume todo el prorrateo: cuánto sube cada costo.
+            ["Factor de costeo", factorPct === null ? "—" : `+${factorPct}%`],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between">
               <span className="text-neutral-700">{k}</span>
@@ -674,9 +744,16 @@ export default function Entrada() {
             </span>
           </div>
           <p className="text-xs text-neutral-700">
-            El prorrateo se calcula al vuelo para que veas el costo real por SKU. La base de datos
-            guarda mercancía y gastos por separado — no se sobrescribe ningún costo.
+            Los gastos se reparten <b>por valor</b>: cada SKU absorbe la misma proporción que
+            aporta, así que todos los costos suben ese mismo porcentaje. Se calcula al vuelo — la
+            base de datos guarda mercancía y gastos por separado y no se sobrescribe ningún costo.
           </p>
+          {!prorrateable && !gastos.eq(0) && (
+            <div className="rounded-[14px] bg-paper p-3 text-xs">
+              Hay gastos pero la mercancía suma $0.00, así que no hay sobre qué repartirlos.
+              Captura el costo de los SKU y el prorrateo aparece solo.
+            </div>
+          )}
           {incompletas.length > 0 && editable && (
             <div className="rounded-[14px] bg-paper p-3 text-xs">
               Faltan datos en {incompletas.length} renglón{incompletas.length > 1 ? "es" : ""}.
