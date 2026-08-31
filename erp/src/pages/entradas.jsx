@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
-import { Plus, ArrowRight, Truck, CircleAlert } from "lucide-react"
+import { Plus, ArrowRight, Search, CircleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -70,28 +70,35 @@ export default function Entradas() {
   )
   const pendientes = conCosteo.filter((p) => p.status === "active").length
 
+
+  const COLS =
+    "grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_86px_118px_118px_128px_104px_30px]"
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <SubNavInventario />
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Entradas</h3>
-          <div className="max-w-[56ch] text-[13px] text-neutral-700">
+          <div className="max-w-[64ch] text-[13px] text-neutral-700">
             Compras de mercancía con sus fletes y gastos. La existencia sube al cerrar la entrada,
             no al capturarla — así puedes corregirla mientras esté pendiente.
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar entrada, proveedor u origen"
-            className="h-9 w-[250px] rounded-full bg-newsprint px-3.5 text-sm outline-none"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar entrada, proveedor u origen"
+              className="entrada-texto w-[270px] pr-3 pl-9"
+            />
+          </div>
           <Link
             to="/entradas/nueva"
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper"
+            className="boton boton-ink"
           >
             <Plus className="size-4" />
             Nueva entrada
@@ -100,24 +107,28 @@ export default function Entradas() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="registro flex items-center gap-2.5 px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-6 border-b border-neutral-300">
         {FILTROS.map((f) => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
             className={cn(
-              "rounded-full px-4 py-1.5 text-[13px]",
-              filtro === f ? "bg-ink text-paper" : "bg-newsprint text-ink"
+              "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-[13px] transition-colors",
+              filtro === f
+                ? "border-ink font-semibold text-ink"
+                : "border-transparent text-neutral-600 hover:text-ink"
             )}
           >
             {f}
-            {f === "Pendientes" && pendientes > 0 ? ` ${pendientes}` : ""}
+            {f === "Pendientes" && pendientes > 0 ? (
+              <span className="text-[11px] text-neutral-500 tabular-nums">{pendientes}</span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -125,7 +136,7 @@ export default function Entradas() {
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
       {!cargando && visibles.length === 0 && (
-        <div className="rounded-[22px] bg-newsprint p-10 text-center">
+        <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
             {filas.length === 0 ? "Todavía no hay entradas" : "Ninguna entrada coincide"}
           </div>
@@ -138,9 +149,13 @@ export default function Entradas() {
       )}
 
       {visibles.length > 0 && (
-        <section className="rounded-[22px] bg-newsprint p-6">
-          <div className="grid grid-cols-[38px_minmax(0,1.2fr)_minmax(0,1.4fr)_88px_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1fr)_92px_26px] gap-3 px-3 pb-2 text-[10px] tracking-[0.1em] text-ink/50 uppercase">
-            <div />
+        <div className="registro overflow-hidden">
+          <div
+            className={cn(
+              "registro-cab rotulo grid items-center gap-3",
+              COLS
+            )}
+          >
             <div>Entrada</div>
             <div>Proveedor</div>
             <div className="text-right">Unidades</div>
@@ -150,53 +165,50 @@ export default function Entradas() {
             <div>Estado</div>
             <div />
           </div>
-          <div className="flex flex-col gap-2">
-            {visibles.map((p) => (
-              <Link
-                key={p.id}
-                to={`/entradas/${p.id}`}
-                className="grid grid-cols-[38px_minmax(0,1.2fr)_minmax(0,1.4fr)_88px_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1fr)_92px_26px] items-center gap-3 rounded-[14px] bg-paper p-3 transition-shadow hover:shadow-sm"
+
+          {visibles.map((p) => (
+            <Link
+              key={p.id}
+              to={`/entradas/${p.id}`}
+              className={cn(
+                "registro-fila group grid items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100",
+                COLS
+              )}
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold tabular-nums">{p.entry_no}</div>
+                <div className="text-[11px] text-neutral-600 tabular-nums">
+                  {fecha(p.date_created)}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm">{p.provider ?? "—"}</div>
+                <div className="truncate text-[11px] text-neutral-600">
+                  {[p.origin, `${p.skus} SKU`].filter(Boolean).join(" · ")}
+                </div>
+              </div>
+              <div className="text-right text-sm tabular-nums">{n0(p.unidades)}</div>
+              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+                {usd(p.mercancia)}
+              </div>
+              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+                {p.gastos.eq(0) ? <span className="text-neutral-400">—</span> : usd(p.gastos)}
+              </div>
+              <div className="text-right text-sm font-semibold tabular-nums">{usd(p.total)}</div>
+              {/* Pendiente es lo que pide acción — cerrar la entrada para que
+                  suba la existencia — así que es lo que lleva peso. */}
+              <div
+                className={cn(
+                  "text-[13px]",
+                  p.status === "closed" ? "text-neutral-600" : "font-semibold text-ink"
+                )}
               >
-                <span className="grid size-9 place-items-center rounded-xl bg-newsprint">
-                  <Truck className="size-[19px] text-neutral-700" />
-                </span>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{p.entry_no}</div>
-                  <div className="text-[11px] text-neutral-700 tabular-nums">
-                    {fecha(p.date_created)}
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm">{p.provider ?? "—"}</div>
-                  <div className="truncate text-[11px] text-neutral-700">
-                    {[p.origin, `${p.skus} SKU`].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <div className="text-right text-sm tabular-nums">{n0(p.unidades)}</div>
-                <div className="text-right text-[13px] text-neutral-700 tabular-nums">
-                  {usd(p.mercancia)}
-                </div>
-                <div className="text-right text-[13px] text-neutral-700 tabular-nums">
-                  {p.gastos.eq(0) ? "—" : usd(p.gastos)}
-                </div>
-                <div className="text-right text-[15px] font-semibold tabular-nums">
-                  {usd(p.total)}
-                </div>
-                <div>
-                  <span
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs",
-                      p.status === "closed" ? "bg-neutral-200 text-neutral-700" : "bg-ink text-paper"
-                    )}
-                  >
-                    {p.status === "closed" ? "Recibida" : "Pendiente"}
-                  </span>
-                </div>
-                <ArrowRight className="size-[18px] justify-self-end text-neutral-700" />
-              </Link>
-            ))}
-          </div>
-        </section>
+                {p.status === "closed" ? "Recibida" : "Pendiente"}
+              </div>
+              <ArrowRight className="size-[17px] justify-self-end text-neutral-400 transition-colors group-hover:text-ink" />
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   )

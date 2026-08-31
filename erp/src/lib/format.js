@@ -51,12 +51,18 @@ export function estadoFactura(inv) {
   return { etiqueta: "Pendiente", tono: "pendiente", saldo, pagado }
 }
 
-export const TONO_CLASE = {
-  borrador: "bg-neutral-200 text-neutral-700",
-  pagada: "bg-neutral-200 text-neutral-700",
-  vencida: "bg-ink text-paper",
-  parcial: "border border-neutral-400 text-ink",
-  pendiente: "bg-ink/10 text-ink",
+/**
+ * El estado se dice con color y peso tipográfico, no con una pastilla: una
+ * columna de píldoras negras pesa más que los importes, que es lo que
+ * realmente se viene a leer. Vencida es lo único con color en la pantalla,
+ * y por eso se ve desde la puerta.
+ */
+export const TONO_TEXTO = {
+  vencida: "text-destructive font-semibold",
+  parcial: "text-ink",
+  pendiente: "text-ink",
+  pagada: "text-neutral-600",
+  borrador: "text-neutral-600 italic",
 }
 
 /* -------------------------------------------------------------- márgenes -- */

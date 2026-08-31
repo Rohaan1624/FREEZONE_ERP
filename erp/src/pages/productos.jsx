@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
-import { Plus, Check, Trash2, X, Pencil, CircleAlert, Package, ArrowRight } from "lucide-react"
+import { Plus, Check, Trash2, X, Pencil, CircleAlert, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -135,29 +135,35 @@ export default function Productos() {
   )
 
   const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
-  const tile = "block rounded-2xl bg-paper px-4 py-2.5"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  const tile = "casilla block"
+  const rotulo = "rotulo"
+  const COLS =
+    "grid-cols-[minmax(0,1fr)_minmax(76px,0.2fr)_minmax(96px,0.24fr)_minmax(100px,0.24fr)_minmax(100px,0.24fr)_150px_70px]"
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Productos</h3>
           <div className="text-[13px] text-neutral-700">
-            {filas.length} SKU · inventario valuado {usd(valorInventario)}
+            {filas.length} SKU · inventario valuado{" "}
+            <span className="tabular-nums">{usd(valorInventario)}</span>
             {sinCosto > 0 && ` · ${sinCosto} sin costo`}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar SKU o descripción"
-            className="h-9 w-[250px] rounded-full bg-newsprint px-3.5 text-sm outline-none"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar SKU o descripción"
+              className="entrada-texto w-[260px] pr-3 pl-9"
+            />
+          </div>
           <button
             onClick={() => setForm({ ...VACIO })}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper"
+            className="boton boton-ink"
           >
             <Plus className="size-4" />
             Nuevo SKU
@@ -166,18 +172,18 @@ export default function Productos() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="registro flex items-center gap-2.5 px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {form && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="panel">
           <div className="mb-4 flex items-center gap-3">
             <h4 className="m-0 font-semibold">{form.id ? "Editar SKU" : "Nuevo SKU"}</h4>
             {form.id && (
-              <span className="rounded-full bg-paper px-3 py-1 text-xs tabular-nums">
+              <span className="rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs tabular-nums">
                 existencia {n0(form.stock)} · no editable
               </span>
             )}
@@ -187,7 +193,7 @@ export default function Productos() {
                   setForm(null)
                   setError("")
                 }}
-                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm"
+                className="boton boton-claro"
               >
                 <X className="size-4" />
                 Cancelar
@@ -195,7 +201,7 @@ export default function Productos() {
               <button
                 onClick={guardar}
                 disabled={guardando}
-                className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+                className="boton boton-ink"
               >
                 <Check className="size-4" />
                 {guardando ? "Guardando…" : "Guardar"}
@@ -321,7 +327,7 @@ export default function Productos() {
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
       {!cargando && visibles.length === 0 && (
-        <div className="rounded-[22px] bg-newsprint p-10 text-center">
+        <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
             {filas.length === 0 ? "Todavía no hay productos" : "Ningún SKU coincide"}
           </div>
@@ -333,98 +339,108 @@ export default function Productos() {
         </div>
       )}
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-3">
-        {visibles.map((p) => (
-          /* Stretched link, same as the client cards: a real <a> covering the
-             card with the action buttons layered above it, so right-click and
-             open-in-new-tab keep working and no <button> ends up inside an <a>. */
-          <article
-            key={p.id}
-            className="group relative flex cursor-pointer flex-col gap-3 rounded-[20px] bg-newsprint p-4 transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-ink"
+      {visibles.length > 0 && (
+        <div className="registro overflow-hidden">
+          <div
+            className={cn(
+              "registro-cab rotulo grid items-center gap-3",
+              COLS
+            )}
           >
-            <Link
-              to={`/productos/${p.id}`}
-              aria-label={`Ver movimientos de ${p.sku}`}
-              className="absolute inset-0 z-0 rounded-[20px]"
-            />
+            <div>Producto</div>
+            <div>Unidad</div>
+            <div className="text-right">Existencia</div>
+            <div className="text-right">Costo</div>
+            <div className="text-right">Precio</div>
+            <div className="text-right">Margen · Markup</div>
+            <div />
+          </div>
 
-            <div className="pointer-events-none relative z-10 flex items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-paper">
-                <Package className="size-[21px] text-neutral-700" />
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-[15px] leading-tight font-semibold">
-                  {p.description || p.sku}
-                </div>
-                <div className="truncate text-xs text-neutral-700 tabular-nums">
-                  {p.sku} · {p.qty_unit > 1 ? `${p.qty_unit} por bulto` : "suelto"} ·{" "}
-                  {p.unit ?? "PZA"}
+          {visibles.map((p) => (
+            /* Stretched link, same as the invoice book: a real <a> covering the
+               row with the action buttons layered above it, so right-click and
+               open-in-new-tab keep working and no <button> ends up inside an <a>. */
+            <div
+              key={p.id}
+              className={cn(
+                "registro-fila group relative grid cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100 focus-within:bg-neutral-100",
+                COLS
+              )}
+            >
+              <Link
+                to={`/productos/${p.id}`}
+                aria-label={`Ver movimientos de ${p.sku}`}
+                className="absolute inset-0 z-0"
+              />
+
+              <div className="pointer-events-none relative z-10 min-w-0">
+                <div className="truncate text-sm">{p.description || p.sku}</div>
+                <div className="truncate text-[11px] text-neutral-600 tabular-nums">
+                  {p.sku} · {p.qty_unit > 1 ? `${p.qty_unit} por bulto` : "suelto"}
                 </div>
               </div>
-              <span
+              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600">
+                {p.unit ?? "PZA"}
+              </div>
+              {/* Agotado en rojo: en una comercializadora un SKU en 0 es venta
+                  que se está perdiendo, no un estado neutro. */}
+              <div
                 className={cn(
-                  "ml-auto shrink-0 rounded-full px-3 py-1 text-xs tabular-nums",
-                  Number(p.stock) === 0 ? "bg-ink text-paper" : "bg-paper"
+                  "pointer-events-none relative z-10 text-right text-sm font-semibold tabular-nums",
+                  Number(p.stock) === 0 && "text-destructive"
                 )}
               >
                 {n0(p.stock)}
-              </span>
-            </div>
-
-            <div className="pointer-events-none relative z-10 grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-paper px-3 py-2">
-                <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">Costo</div>
-                <div className="text-[15px] font-semibold tabular-nums">
-                  {p.cost_price == null ? "—" : usd(p.cost_price)}
-                </div>
               </div>
-              <div className="rounded-xl bg-paper px-3 py-2">
-                <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">Precio</div>
-                <div className="text-[15px] font-semibold tabular-nums">
-                  {p.sale_price == null ? "—" : usd(p.sale_price)}
-                </div>
+              <div className="pointer-events-none relative z-10 text-right text-sm tabular-nums">
+                {p.cost_price == null ? (
+                  <span className="text-neutral-400">—</span>
+                ) : (
+                  usd(p.cost_price)
+                )}
               </div>
-              <div className="rounded-xl bg-paper px-3 py-2">
-                <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">
-                  Margen · Markup
-                </div>
-                <div className="text-[15px] font-semibold tabular-nums">
+              <div className="pointer-events-none relative z-10 text-right text-sm tabular-nums">
+                {p.sale_price == null ? (
+                  <span className="text-neutral-400">—</span>
+                ) : (
+                  usd(p.sale_price)
+                )}
+              </div>
+              <div className="pointer-events-none relative z-10 text-right tabular-nums">
+                <div className="text-sm font-semibold">
                   {margenTexto(p.cost_price, p.sale_price)}
                 </div>
-                <div className="text-[11px] text-neutral-700 tabular-nums">
+                <div className="text-[11px] text-neutral-600">
                   {markupTexto(p.cost_price, p.sale_price)} sobre costo
                 </div>
               </div>
-            </div>
 
-            <div className="pointer-events-none relative z-10 flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-                Ver movimientos
-                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-              </span>
-              <button
-                onClick={() => setForm({ ...p })}
-                title="Editar SKU"
-                className="pointer-events-auto relative z-20 ml-auto grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm"
-              >
-                <Pencil className="size-4" />
-              </button>
-              <button
-                onClick={() => setABorrar(p)}
-                disabled={Number(p.stock) !== 0}
-                title={
-                  Number(p.stock) !== 0
-                    ? "Solo se puede eliminar un SKU con existencia 0"
-                    : "Eliminar SKU"
-                }
-                className="pointer-events-auto relative z-20 grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm disabled:opacity-35 disabled:hover:shadow-none"
-              >
-                <Trash2 className="size-4" />
-              </button>
+              {/* z-20: encima del enlace estirado */}
+              <div className="relative z-20 flex items-center justify-end gap-1">
+                <button
+                  onClick={() => setForm({ ...p })}
+                  title="Editar SKU"
+                  className="accion"
+                >
+                  <Pencil className="size-[15px]" />
+                </button>
+                <button
+                  onClick={() => setABorrar(p)}
+                  disabled={Number(p.stock) !== 0}
+                  title={
+                    Number(p.stock) !== 0
+                      ? "Solo se puede eliminar un SKU con existencia 0"
+                      : "Eliminar SKU"
+                  }
+                  className="accion"
+                >
+                  <Trash2 className="size-[15px]" />
+                </button>
+              </div>
             </div>
-          </article>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Confirmar
         abierto={Boolean(aBorrar)}

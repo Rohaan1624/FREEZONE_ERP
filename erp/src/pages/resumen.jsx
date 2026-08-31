@@ -28,6 +28,19 @@ import {
   ventana,
 } from "@/lib/resumen"
 
+/**
+ * Resumen.
+ *
+ * Mismo criterio que el libro de facturas: superficies de papel blanco con
+ * filete, renglones separados por reglas en lugar de tarjetitas flotando, y
+ * radios de la escala del sistema (--radius-md 2px, --radius-2xl 4px) en vez
+ * de rounded-[22px].
+ *
+ * Los indicadores se ajustan a su contenido. Antes la rejilla era items-stretch
+ * y los estiraba hasta la altura de la gráfica, así que «Cobrado $35,420.80»
+ * flotaba sobre 200px de vacío y la pantalla parecía sin terminar.
+ */
+
 const PERIODOS = [
   ["anio", "Año"],
   ["mes", "Mes"],
@@ -54,6 +67,9 @@ const RAMPA_EDAD = [
   "var(--color-neutral-700)",
   "var(--color-ink)",
 ]
+
+const hoja = "registro"
+const rotulo = "rotulo"
 
 export default function Resumen() {
   const [periodo, setPeriodo] = React.useState("anio")
@@ -113,33 +129,74 @@ export default function Resumen() {
 
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
 
-  const rotulo = "text-[10px] tracking-[0.12em] text-ink/55 uppercase"
+  const indicadores = [
+    {
+      icon: HandCoins,
+      k: "Cobrado",
+      v: usd(pagado),
+      sub: (() => {
+        const r = div(pagado, barras.totalActual)
+        return r === null
+          ? "sin facturación en el periodo"
+          : `${Number(r.times(100).toString()).toFixed(0)}% de lo facturado`
+      })(),
+    },
+    {
+      icon: Percent,
+      k: "Margen bruto",
+      v: margen.porcentaje === null ? "—" : `${margen.porcentaje.toFixed(1)}%`,
+      sub:
+        margen.porcentaje === null ? "faltan costos o ventas" : `${usd(margen.utilidad)} de utilidad`,
+      aviso: margen.sinCosto > 0 ? `${margen.sinCosto} renglones sin costo` : null,
+    },
+    {
+      icon: Boxes,
+      k: "Inventario",
+      v: usd(inv.valor),
+      sub: `${inv.skus} SKU en piso`,
+      aviso: inv.sinCosto > 0 ? `${inv.sinCosto} sin costo` : null,
+    },
+    {
+      icon: Receipt,
+      k: "Facturas",
+      v: n0(numFacturas),
+      sub: (() => {
+        const r = div(barras.totalActual, numFacturas)
+        return r === null ? "ninguna emitida" : `ticket ${usd(r)}`
+      })(),
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className={cn("flex items-center gap-2.5 px-4 py-3 text-[13px]", hoja)}>
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.78fr)]">
-        <section className="rounded-[22px] bg-newsprint p-6">
-          {/* Filters in one row above the chart */}
+      {/* items-start, no items-stretch: cada bloque mide lo que mide. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.78fr)]">
+        <section className={cn("p-6", hoja)}>
           <div className="mb-4 flex flex-wrap items-start gap-4">
             <div>
               <div className={rotulo}>Ingresos facturados</div>
               <div className="mt-1 text-[13px] text-neutral-700">{etiquetaRango}</div>
             </div>
-            <div className="ml-auto inline-flex gap-1 rounded-full bg-paper p-1">
-              {PERIODOS.map(([id, label]) => (
+            {/* Control segmentado con esquinas del sistema: se lee como un
+                control, no como la navegación (que ya es subrayada). */}
+            <div className="ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">
+              {PERIODOS.map(([id, label], i) => (
                 <button
                   key={id}
                   onClick={() => setPeriodo(id)}
                   className={cn(
-                    "rounded-full px-4 py-1.5 text-[13px]",
-                    periodo === id ? "bg-ink text-paper" : "text-ink"
+                    "px-3.5 py-1.5 text-[13px] transition-colors",
+                    i > 0 && "border-l border-neutral-300",
+                    periodo === id
+                      ? "bg-ink font-semibold text-paper"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-ink"
                   )}
                 >
                   {label}
@@ -160,7 +217,7 @@ export default function Resumen() {
               <span className="text-neutral-700">Sin periodo anterior con que comparar</span>
             ) : (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-paper px-3 py-1 font-semibold tabular-nums">
+                <span className="inline-flex items-center gap-1.5 font-semibold tabular-nums">
                   {varia >= 0 ? (
                     <TrendingUp className="size-4" />
                   ) : (
@@ -176,7 +233,7 @@ export default function Resumen() {
             )}
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 border-t border-neutral-200 pt-4">
             <div className="mb-3 flex flex-wrap items-center gap-4">
               <div className={rotulo}>
                 {periodo === "anio"
@@ -188,23 +245,17 @@ export default function Resumen() {
               {/* Legend: always present for 2 series */}
               <div className="ml-auto flex items-center gap-3 text-[11px]">
                 <span className="flex items-center gap-1.5">
-                  <span
-                    className="size-2.5 rounded-[3px]"
-                    style={{ background: SERIE_ACTUAL }}
-                  />
+                  <span className="size-2.5 rounded-sm" style={{ background: SERIE_ACTUAL }} />
                   {barras.anioActual}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span
-                    className="size-2.5 rounded-[3px]"
-                    style={{ background: SERIE_PREVIA }}
-                  />
+                  <span className="size-2.5 rounded-sm" style={{ background: SERIE_PREVIA }} />
                   {barras.anioPrevio}
                 </span>
                 <button
                   onClick={() => setTabla((v) => !v)}
                   title={tabla ? "Ver gráfica" : "Ver tabla"}
-                  className="grid size-7 place-items-center rounded-full bg-paper"
+                  className="grid size-7 place-items-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-ink"
                 >
                   {tabla ? <BarChart3 className="size-4" /> : <Table2 className="size-4" />}
                 </button>
@@ -223,7 +274,7 @@ export default function Resumen() {
                   </thead>
                   <tbody>
                     {barras.etiquetas.map((e, i) => (
-                      <tr key={i} className="border-t border-ink/8">
+                      <tr key={i} className="border-t border-neutral-200">
                         <td className="py-1.5">{e}</td>
                         <td className="py-1.5 text-right">{usd(barras.actual[i])}</td>
                         <td className="py-1.5 text-right text-neutral-700">
@@ -246,7 +297,7 @@ export default function Resumen() {
                       className="relative flex h-full flex-1 flex-col justify-end gap-2"
                     >
                       {viva && (
-                        <div className="pointer-events-none absolute -top-1 left-1/2 z-10 w-max -translate-x-1/2 -translate-y-full rounded-xl bg-ink px-3 py-2 text-[11px] text-paper shadow-md">
+                        <div className="pointer-events-none absolute -top-1 left-1/2 z-10 w-max -translate-x-1/2 -translate-y-full rounded-md bg-ink px-3 py-2 text-[11px] text-paper shadow-md">
                           <div className="font-semibold">{e}</div>
                           <div className="tabular-nums">
                             {barras.anioActual}: {usd(barras.actual[i])}
@@ -256,10 +307,10 @@ export default function Resumen() {
                           </div>
                         </div>
                       )}
-                      {/* 2px gap between adjacent bars; 4px rounded data-end on the baseline */}
+                      {/* 2px gap between adjacent bars; square data-end on the baseline */}
                       <div className="flex flex-1 items-end gap-[2px]">
                         <div
-                          className="flex-1 rounded-t-[4px] transition-opacity"
+                          className="flex-1 rounded-t-sm transition-opacity"
                           style={{
                             background: SERIE_ACTUAL,
                             height: `${Math.max(1, (barras.actualNum[i] / maxBarra) * 100)}%`,
@@ -267,7 +318,7 @@ export default function Resumen() {
                           }}
                         />
                         <div
-                          className="flex-1 rounded-t-[4px] transition-opacity"
+                          className="flex-1 rounded-t-sm transition-opacity"
                           style={{
                             background: SERIE_PREVIA,
                             height: `${Math.max(1, (barras.previoNum[i] / maxBarra) * 100)}%`,
@@ -275,7 +326,7 @@ export default function Resumen() {
                           }}
                         />
                       </div>
-                      <div className="text-center text-[10px] tracking-[0.06em] text-ink/55 uppercase">
+                      <div className="text-center text-[10px] tracking-[0.06em] text-neutral-600 uppercase">
                         {e}
                       </div>
                     </div>
@@ -286,139 +337,113 @@ export default function Resumen() {
           </div>
         </section>
 
-        {/* Stat tiles — no plots, so no hover layer needed */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            {
-              icon: HandCoins,
-              k: "Cobrado",
-              v: usd(pagado),
-              sub: (() => {
-                const r = div(pagado, barras.totalActual)
-                return r === null
-                  ? "sin facturación en el periodo"
-                  : `${Number(r.times(100).toString()).toFixed(0)}% de lo facturado`
-              })(),
-            },
-            {
-              icon: Percent,
-              k: "Margen bruto",
-              v: margen.porcentaje === null ? "—" : `${margen.porcentaje.toFixed(1)}%`,
-              sub:
-                margen.porcentaje === null
-                  ? "faltan costos o ventas"
-                  : `${usd(margen.utilidad)} de utilidad`,
-              aviso: margen.sinCosto > 0 ? `${margen.sinCosto} renglones sin costo` : null,
-            },
-            {
-              icon: Boxes,
-              k: "Inventario",
-              v: usd(inv.valor),
-              sub: `${inv.skus} SKU en piso`,
-              aviso: inv.sinCosto > 0 ? `${inv.sinCosto} sin costo` : null,
-            },
-            {
-              icon: Receipt,
-              k: "Facturas",
-              v: n0(numFacturas),
-              sub: (() => {
-                const r = div(barras.totalActual, numFacturas)
-                return r === null ? "ninguna emitida" : `ticket ${usd(r)}`
-              })(),
-            },
-          ].map(({ icon: Icon, k, v, sub, aviso }) => (
-            <div key={k} className="flex flex-col gap-0.5 rounded-[18px] bg-newsprint p-4">
-              <Icon className="mb-1.5 size-[22px] text-neutral-700" />
-              <div className={rotulo}>{k}</div>
-              <div className="text-[28px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
-                {v}
+        {/* La columna derecha lleva los indicadores Y la cobranza. Con solo los
+            indicadores quedaba media columna vacía, y de paso emparejar ingresos
+            con lo que falta cobrar es la lectura que de verdad importa. */}
+        <div className="flex flex-col gap-3">
+          {/* Stat tiles — no plots, so no hover layer needed */}
+          <div className="grid grid-cols-2 gap-3">
+            {indicadores.map(({ icon: Icon, k, v, sub, aviso }) => (
+              <div key={k} className={cn("flex flex-col gap-0.5 p-4", hoja)}>
+                {/* El icono va junto al rótulo, no como bloque encima: apilado
+                    hacía que cada indicador ocupara el doble y pareciera tarjeta
+                    de marketing en vez de una cifra de reporte. */}
+                <div className="flex items-center gap-2">
+                  <Icon className="size-4 shrink-0 text-neutral-500" />
+                  <span className={rotulo}>{k}</span>
+                </div>
+                <div className="text-[28px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
+                  {v}
+                </div>
+                <div className="text-xs text-neutral-700">{sub}</div>
+                {aviso && <div className="mt-0.5 text-[11px] text-neutral-500">{aviso}</div>}
               </div>
-              <div className="text-xs text-neutral-700">{sub}</div>
-              {aviso && <div className="mt-0.5 text-[11px] text-ink/55">{aviso}</div>}
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <section className="rounded-[22px] bg-newsprint p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <h4 className="m-0 font-semibold">Cuentas por cobrar</h4>
-            <span className="text-[17px] font-semibold tabular-nums">{usd(porCobrar)}</span>
+          <section className={cn("overflow-hidden", hoja)}>
+          <div className="registro-cab flex items-center gap-3 px-5 py-3">
+            <h4 className="m-0 text-[15px] font-semibold">Cuentas por cobrar</h4>
+            <span className="text-[15px] font-semibold tabular-nums">{usd(porCobrar)}</span>
             <Link
               to="/clientes"
-              className="ml-auto flex items-center gap-1.5 text-[13px]"
+              className="ml-auto flex items-center gap-1.5 text-[13px] text-neutral-600 hover:text-ink"
             >
               Por cliente
               <ArrowRight className="size-4" />
             </Link>
           </div>
           {porCobrar.eq(0) ? (
-            <div className="rounded-xl bg-paper p-6 text-center text-[13px] text-neutral-700">
-              Nada pendiente de cobro.
-            </div>
+            <div className="p-6 text-center text-[13px] text-neutral-700">Nada pendiente de cobro.</div>
           ) : (
-            <div className="flex flex-col gap-2.5">
-              {edades.map((a, i) => (
-                <div
-                  key={a.k}
-                  className="grid grid-cols-[110px_minmax(0,1fr)_104px] items-center gap-3 rounded-xl bg-paper px-3 py-2.5"
-                >
-                  <div className="text-xs text-ink/62">{a.k}</div>
-                  <div className="h-3 overflow-hidden rounded-full bg-ink/8">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.max(2, (a.num / maxEdad) * 100)}%`,
-                        background: RAMPA_EDAD[i],
-                      }}
-                    />
-                  </div>
-                  {/* Direct label on every bar — the pale ramp steps require it */}
-                  <div className="text-right text-[15px] font-semibold tabular-nums">
-                    {usd(a.v)}
-                  </div>
+            edades.map((a, i) => (
+              <div
+                key={a.k}
+                className={cn(
+                  "grid grid-cols-[110px_minmax(0,1fr)_112px] items-center gap-3 px-5 py-3",
+                  i > 0 && "border-t border-neutral-200"
+                )}
+              >
+                <div className="text-xs text-neutral-600">{a.k}</div>
+                <div className="h-2.5 overflow-hidden rounded-sm bg-neutral-200">
+                  <div
+                    className="h-full rounded-sm"
+                    style={{
+                      width: `${Math.max(2, (a.num / maxEdad) * 100)}%`,
+                      background: RAMPA_EDAD[i],
+                    }}
+                  />
                 </div>
-              ))}
-            </div>
+                {/* Direct label on every bar — the pale ramp steps require it */}
+                <div className="text-right text-[15px] font-semibold tabular-nums">{usd(a.v)}</div>
+              </div>
+            ))
           )}
-        </section>
-
-        <section className="rounded-[22px] bg-newsprint p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <h4 className="m-0 font-semibold">SKU más vendidos</h4>
-            <Link to="/productos" className="ml-auto flex items-center gap-1.5 text-[13px]">
-              Catálogo
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-          {top.length === 0 ? (
-            <div className="rounded-xl bg-paper p-6 text-center text-[13px] text-neutral-700">
-              Sin ventas de productos en el periodo.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {top.map((t, i) => (
-                <div
-                  key={t.sku}
-                  className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-paper px-3 py-2.5"
-                >
-                  <div className="grid size-[26px] place-items-center rounded-full bg-newsprint text-[13px] font-semibold tabular-nums">
-                    {i + 1}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm">{t.nombre}</div>
-                    <div className="text-[11px] text-neutral-700 tabular-nums">
-                      {t.sku} · {n0(t.unidades)} unidades
-                    </div>
-                  </div>
-                  <div className="text-[16px] font-semibold tabular-nums">{usd(t.importe)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+          </section>
+        </div>
       </div>
+
+      {/* Ancho completo: es una lista con nombre, SKU, unidades e importe, y
+          apretada en media columna el nombre se truncaba a la mitad. */}
+      <section className={cn("overflow-hidden", hoja)}>
+        <div className="registro-cab flex items-center gap-3 px-5 py-3">
+          <h4 className="m-0 text-[15px] font-semibold">SKU más vendidos</h4>
+          <Link
+            to="/productos"
+            className="ml-auto flex items-center gap-1.5 text-[13px] text-neutral-600 hover:text-ink"
+          >
+            Catálogo
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+        {top.length === 0 ? (
+          <div className="p-6 text-center text-[13px] text-neutral-700">
+            Sin ventas de productos en el periodo.
+          </div>
+        ) : (
+          top.map((t, i) => (
+            <div
+              key={t.sku}
+              className={cn(
+                "grid grid-cols-[22px_minmax(0,1fr)_140px_140px] items-center gap-3 px-5 py-2.5",
+                i > 0 && "border-t border-neutral-200"
+              )}
+            >
+              <div className="text-[13px] text-neutral-500 tabular-nums">{i + 1}</div>
+              <div className="min-w-0">
+                <div className="truncate text-sm">{t.nombre}</div>
+                <div className="text-[11px] text-neutral-600 tabular-nums">{t.sku}</div>
+              </div>
+              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+                {n0(t.unidades)} unidades
+              </div>
+              <div className="text-right text-[16px] font-semibold tabular-nums">
+                {usd(t.importe)}
+              </div>
+            </div>
+          ))
+        )}
+      </section>
     </div>
   )
 }

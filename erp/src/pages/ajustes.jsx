@@ -97,14 +97,14 @@ export default function Ajustes() {
   const excede = form?.type === "remove" && qty > stockActual
 
   const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
-  const tile = "block rounded-2xl bg-paper px-4 py-2.5"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  const tile = "block casilla px-4 py-2.5"
+  const rotulo = "rotulo"
 
   return (
     <div className="flex flex-col gap-3">
       <SubNavInventario />
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Ajustes de inventario</h3>
           <div className="max-w-[62ch] text-[13px] text-neutral-700">
@@ -115,7 +115,7 @@ export default function Ajustes() {
         {!form && (
           <button
             onClick={() => abrir()}
-            className="ml-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper"
+            className="boton boton-ink ml-auto"
           >
             <Plus className="size-4" />
             Crear ajuste
@@ -123,7 +123,7 @@ export default function Ajustes() {
         )}
       </div>
 
-      <div className="flex items-start gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+      <div className="flex items-start gap-2.5 registro px-4 py-3 text-[13px]">
         <Lock className="mt-px size-[18px] shrink-0 text-neutral-700" />
         <span className="text-pretty">
           Un ajuste <strong>no se puede editar ni eliminar</strong>. Si te equivocas, crea el ajuste
@@ -132,14 +132,14 @@ export default function Ajustes() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="flex items-center gap-2.5 registro px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {form && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="registro p-6">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Nuevo ajuste</h4>
             <div className="ml-auto flex gap-2">
@@ -148,7 +148,7 @@ export default function Ajustes() {
                   setForm(null)
                   setError("")
                 }}
-                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm"
+                className="boton boton-claro"
               >
                 <X className="size-4" />
                 Cancelar
@@ -156,7 +156,7 @@ export default function Ajustes() {
               <button
                 onClick={guardar}
                 disabled={guardando}
-                className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+                className="boton boton-ink"
               >
                 <Check className="size-4" />
                 {guardando ? "Guardando…" : "Registrar ajuste"}
@@ -178,10 +178,10 @@ export default function Ajustes() {
                 }}
                 placeholder="Buscar SKU a ajustar"
                 autoFocus
-                className="h-10 w-full rounded-full bg-paper px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                className="entrada-texto h-10 w-full px-4"
               />
               {sugerencias.length > 0 && (
-                <div className="mt-2 rounded-2xl bg-paper/60 p-2">
+                <div className="mt-2 casilla/60 p-2">
                   <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
                     <CornerDownLeft className="size-3.5" />
                     Haz clic en un SKU para elegirlo — o pulsa Enter para el primero
@@ -191,7 +191,7 @@ export default function Ajustes() {
                       <button
                         key={p.id}
                         onClick={() => elegir(p)}
-                        className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl bg-paper p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1"
+                        className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 casilla p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1"
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm">{p.description || p.sku}</div>
@@ -200,7 +200,7 @@ export default function Ajustes() {
                         <div className="text-xs text-neutral-700 tabular-nums">
                           existencia {n0(p.stock)}
                         </div>
-                        <span className="flex items-center gap-1.5 rounded-full bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
+                        <span className="flex items-center gap-1.5 rounded-md bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
                           <PlusCircle className="size-4" />
                           Elegir
                           {i === 0 && (
@@ -217,7 +217,7 @@ export default function Ajustes() {
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-paper px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3 casilla px-4 py-3">
                 <div className="min-w-0">
                   <div className="truncate text-[15px] font-semibold">
                     {form.producto.description || form.producto.sku}
@@ -229,7 +229,7 @@ export default function Ajustes() {
                 </div>
                 <button
                   onClick={() => setForm({ ...form, producto: null })}
-                  className="ml-auto rounded-full bg-newsprint px-3 py-1.5 text-[13px]"
+                  className="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-[13px]"
                 >
                   Cambiar SKU
                 </button>
@@ -238,16 +238,17 @@ export default function Ajustes() {
               <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2.5">
                 <div className={tile}>
                   <div className={rotulo}>Movimiento</div>
-                  <div className="mt-1 inline-flex gap-1 rounded-full bg-newsprint p-1">
+                  <div className="mt-1 inline-flex overflow-hidden rounded-md border border-neutral-300">
                     {[
                       ["remove", "Quitar", ArrowUpRight],
                       ["add", "Agregar", ArrowDownLeft],
-                    ].map(([v, etiqueta, Icon]) => (
+                    ].map(([v, etiqueta, Icon], i) => (
                       <button
                         key={v}
                         onClick={() => setForm({ ...form, type: v, description: "" })}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px]",
+                          "flex items-center gap-1.5 px-3 py-1.5 text-[13px] transition-colors",
+                          i > 0 && "border-l border-neutral-300",
                           form.type === v ? "bg-ink text-paper" : "text-ink"
                         )}
                       >
@@ -301,7 +302,7 @@ export default function Ajustes() {
                     <button
                       key={m}
                       onClick={() => setForm({ ...form, description: m })}
-                      className="rounded-full bg-newsprint px-3 py-1 text-[12px]"
+                      className="rounded-md border border-neutral-300 px-3 py-1 text-[12px]"
                     >
                       {m}
                     </button>
@@ -316,7 +317,7 @@ export default function Ajustes() {
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
       {!cargando && filas.length === 0 && (
-        <div className="rounded-[22px] bg-newsprint p-10 text-center">
+        <div className="registro p-10 text-center">
           <div className="text-base font-semibold">Todavía no hay ajustes</div>
           <div className="mt-1 text-[13px] text-neutral-700">
             Lo normal es que la existencia se mueva con facturas y entradas. Un ajuste es la
@@ -326,8 +327,8 @@ export default function Ajustes() {
       )}
 
       {filas.length > 0 && (
-        <section className="rounded-[22px] bg-newsprint p-6">
-          <div className="grid grid-cols-[40px_100px_minmax(0,1.5fr)_minmax(0,1.4fr)_90px_100px] gap-3 px-3 pb-2 text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+        <section className="registro p-6">
+          <div className="grid grid-cols-[40px_100px_minmax(0,1.5fr)_minmax(0,1.4fr)_90px_100px] gap-3 border-b border-neutral-300 px-1 pb-2 rotulo">
             <div />
             <div>Fecha</div>
             <div>Producto</div>
@@ -335,11 +336,11 @@ export default function Ajustes() {
             <div className="text-right">Cantidad</div>
             <div />
           </div>
-          <div className="flex flex-col gap-2">
+          <div>
             {filas.map((a) => (
               <div
                 key={a.id}
-                className="grid grid-cols-[40px_100px_minmax(0,1.5fr)_minmax(0,1.4fr)_90px_100px] items-center gap-3 rounded-[14px] bg-paper p-3"
+                className="registro-fila grid grid-cols-[40px_100px_minmax(0,1.5fr)_minmax(0,1.4fr)_90px_100px] items-center gap-3 px-1 py-2.5"
               >
                 <span className="grid size-8 place-items-center rounded-xl bg-newsprint">
                   {a.type === "add" ? (
@@ -376,7 +377,7 @@ export default function Ajustes() {
                     })
                   }
                   title="Crear el ajuste contrario"
-                  className="flex items-center gap-1.5 justify-self-end rounded-full bg-newsprint px-3 py-1.5 text-[12px]"
+                  className="flex items-center gap-1.5 justify-self-end rounded-md border border-neutral-300 px-3 py-1.5 text-[12px] text-neutral-600"
                 >
                   <Undo2 className="size-3.5" />
                   Corregir

@@ -54,10 +54,10 @@ export function AppShell() {
               <img
                 src={empresa.logo_url}
                 alt=""
-                className="size-11 rounded-[14px] bg-newsprint object-contain"
+                className="size-10 rounded-2xl bg-newsprint object-contain"
               />
             ) : (
-              <div className="grid size-11 place-items-center rounded-[14px] bg-ink text-[18px] font-semibold text-paper">
+              <div className="grid size-10 place-items-center rounded-2xl bg-ink text-[17px] font-semibold text-paper">
                 {iniciales}
               </div>
             )}
@@ -69,25 +69,28 @@ export function AppShell() {
           <div className="ml-auto flex items-center gap-2">
             <NavLink
               to="/empresa"
-              className="grid size-9 place-items-center rounded-full bg-newsprint"
+              className="grid size-8 place-items-center rounded-md text-neutral-600 hover:bg-newsprint hover:text-ink"
               title="Datos de la empresa"
             >
-              <Settings className="size-[19px]" />
+              <Settings className="size-[18px]" />
             </NavLink>
-            <div className="flex items-center gap-2.5 rounded-full bg-newsprint py-1.5 pr-1.5 pl-4 text-[13px]">
-              <span className="max-w-[22ch] truncate">{usuario?.email}</span>
-              <button
-                onClick={salir}
-                title="Cerrar sesión"
-                className="grid size-[30px] place-items-center rounded-full bg-paper"
-              >
-                <LogOut className="size-[17px]" />
-              </button>
-            </div>
+            <span className="max-w-[24ch] truncate text-[13px] text-neutral-600">
+              {usuario?.email}
+            </span>
+            <button
+              onClick={salir}
+              title="Cerrar sesión"
+              className="grid size-8 place-items-center rounded-md text-neutral-600 hover:bg-newsprint hover:text-ink"
+            >
+              <LogOut className="size-[17px]" />
+            </button>
           </div>
         </header>
 
-        <nav className="inline-flex self-start gap-1.5 rounded-full bg-newsprint p-1.5 print:hidden">
+        {/* Riel con filete, no píldoras con iconos en círculos: ese gesto es el
+            que hace que un ERP parezca una plantilla, se come una fila entera
+            de alto y deja de escalar pasadas seis secciones. */}
+        <nav className="flex flex-wrap gap-7 border-b border-neutral-300 print:hidden">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -95,14 +98,14 @@ export function AppShell() {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2.5 rounded-full py-1.5 pr-5 pl-1.5 text-sm transition-colors",
-                  isActive ? "bg-ink text-paper" : "text-ink hover:bg-paper"
+                  "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-sm transition-colors",
+                  isActive
+                    ? "border-ink font-semibold text-ink"
+                    : "border-transparent text-neutral-600 hover:text-ink"
                 )
               }
             >
-              <span className="grid size-[34px] shrink-0 place-items-center rounded-full bg-paper text-ink">
-                <Icon className="size-5" />
-              </span>
+              <Icon className="size-[18px]" />
               {label}
             </NavLink>
           ))}

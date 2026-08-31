@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
-import { Plus, Check, Trash2, X, Pencil, CircleAlert, Store, ArrowRight } from "lucide-react"
+import { Plus, Check, Trash2, X, Pencil, CircleAlert, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -123,29 +123,40 @@ export default function Clientes() {
   )
   const porCobrar = sumar(filas, (c) => c.balance)
 
+
+  // Mismo sistema que el libro de facturas: hojas blancas con filete, reglas
+  // entre renglones y radios de la escala (--radius-md 2px, --radius-2xl 4px).
   const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
-  const tile = "block rounded-2xl bg-paper px-4 py-2.5"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  // El panel del formulario va en gris y los campos en blanco: el papel donde
+  // se escribe es blanco, el chrome alrededor es el tinte.
+  const tile = "casilla block"
+  const rotulo = "rotulo"
+  const COLS =
+    "grid-cols-[minmax(0,1fr)_minmax(120px,0.4fr)_minmax(88px,0.28fr)_minmax(110px,0.32fr)_150px_70px]"
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Clientes</h3>
           <div className="text-[13px] text-neutral-700">
-            {filas.length} cuentas · por cobrar {usd(porCobrar)}
+            {filas.length} cuentas · por cobrar{" "}
+            <span className="tabular-nums">{usd(porCobrar)}</span>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar nombre, RUC o contacto"
-            className="h-9 w-[250px] rounded-full bg-newsprint px-3.5 text-sm outline-none"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar nombre, RUC o contacto"
+              className="entrada-texto w-[260px] pr-3 pl-9"
+            />
+          </div>
           <button
             onClick={() => setForm({ ...VACIO })}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper"
+            className="boton boton-ink"
           >
             <Plus className="size-4" />
             Nuevo cliente
@@ -154,25 +165,23 @@ export default function Clientes() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="registro flex items-center gap-2.5 px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {form && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="panel">
           <div className="mb-4 flex items-center gap-3">
-            <h4 className="m-0 font-semibold">
-              {form.id ? "Editar cliente" : "Nuevo cliente"}
-            </h4>
+            <h4 className="m-0 font-semibold">{form.id ? "Editar cliente" : "Nuevo cliente"}</h4>
             <div className="ml-auto flex gap-2">
               <button
                 onClick={() => {
                   setForm(null)
                   setError("")
                 }}
-                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm"
+                className="boton boton-claro"
               >
                 <X className="size-4" />
                 Cancelar
@@ -180,7 +189,7 @@ export default function Clientes() {
               <button
                 onClick={guardar}
                 disabled={guardando}
-                className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+                className="boton boton-ink"
               >
                 <Check className="size-4" />
                 {guardando ? "Guardando…" : "Guardar"}
@@ -284,7 +293,7 @@ export default function Clientes() {
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
       {!cargando && visibles.length === 0 && (
-        <div className="rounded-[22px] bg-newsprint p-10 text-center">
+        <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
             {filas.length === 0 ? "Todavía no hay clientes" : "Ninguna cuenta coincide"}
           </div>
@@ -296,97 +305,97 @@ export default function Clientes() {
         </div>
       )}
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-3">
-        {visibles.map((c) => (
-          /**
-           * The whole card opens the statement. Built as a "stretched link":
-           * a REAL <a> absolutely covering the card, with the action buttons
-           * layered above it. That keeps proper link semantics — right-click,
-           * middle-click, open in a new tab, keyboard focus — which an onClick
-           * handler on a <div> would silently lose, and it avoids nesting
-           * <button> inside <a>, which is invalid HTML.
-           *
-           * The affordances are deliberate and redundant: pointer cursor over
-           * the whole card, a lift on hover, the arrow slides right, and a
-           * standing "Ver estado de cuenta" label. Nobody has to guess.
-           */
-          <article
-            key={c.id}
-            className="group relative flex cursor-pointer flex-col gap-3 rounded-[20px] bg-newsprint p-4 transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-ink"
+      {visibles.length > 0 && (
+        // Tabla y no rejilla de tarjetas: aquí se viene a barrer la columna de
+        // saldos de arriba abajo, y en tarjetas cada saldo queda a distinta
+        // altura, así que no se pueden comparar de un vistazo.
+        <div className="registro overflow-hidden">
+          <div
+            className={cn(
+              "registro-cab rotulo grid items-center gap-3",
+              COLS
+            )}
           >
-            <Link
-              to={`/clientes/${c.id}`}
-              aria-label={`Ver estado de cuenta de ${c.name}`}
-              className="absolute inset-0 z-0 rounded-[20px]"
-            />
+            <div>Cliente</div>
+            <div>País</div>
+            <div>Tipo</div>
+            <div>Condiciones</div>
+            <div className="text-right">Saldo</div>
+            <div />
+          </div>
 
-            {/* pointer-events-none so clicks fall through to the link beneath */}
-            <div className="pointer-events-none relative z-10 flex items-start gap-3">
-              <span className="grid size-[42px] shrink-0 place-items-center rounded-[14px] bg-paper">
-                <Store className="size-[22px] text-neutral-700" />
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-[17px] leading-tight font-semibold">{c.name}</div>
-                <div className="truncate text-xs text-neutral-700 tabular-nums">
+          {visibles.map((c) => (
+            /**
+             * The whole row opens the statement. Built as a "stretched link":
+             * a REAL <a> absolutely covering the row, with the action buttons
+             * layered above it. That keeps proper link semantics — right-click,
+             * middle-click, open in a new tab, keyboard focus — which an onClick
+             * handler on a <div> would silently lose, and it avoids nesting
+             * <button> inside <a>, which is invalid HTML.
+             */
+            <div
+              key={c.id}
+              className={cn(
+                "registro-fila group relative grid cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100 focus-within:bg-neutral-100",
+                COLS
+              )}
+            >
+              <Link
+                to={`/clientes/${c.id}`}
+                aria-label={`Ver estado de cuenta de ${c.name}`}
+                className="absolute inset-0 z-0"
+              />
+
+              {/* pointer-events-none so clicks fall through to the link beneath */}
+              <div className="pointer-events-none relative z-10 min-w-0">
+                <div className="truncate text-sm font-semibold">{c.name}</div>
+                <div className="truncate text-[11px] text-neutral-600 tabular-nums">
                   {[c.identifier, c.contact, c.email].filter(Boolean).join(" · ") || "sin datos"}
                 </div>
               </div>
-              <span className="ml-auto shrink-0 rounded-full bg-paper px-3 py-1 text-xs">
+              <div className="pointer-events-none relative z-10 truncate text-[13px] text-neutral-600">
+                {c.country || "—"}
+              </div>
+              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600">
                 {ETIQUETA_TIPO[c.client_type] ?? c.client_type ?? "—"}
-              </span>
-            </div>
-
-            {/* No "alta" tile: client has no date_created column. */}
-            <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-paper px-3 py-2">
-                <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">Saldo</div>
-                <div className="text-[18px] font-semibold tabular-nums">{usd(c.balance)}</div>
               </div>
-              <div className="rounded-xl bg-paper px-3 py-2">
-                <div className="text-[9px] tracking-[0.1em] text-ink/50 uppercase">
-                  Condiciones
-                </div>
-                <div className="text-[18px] font-semibold tabular-nums">
-                  {c.payment_terms ? `Neto ${c.payment_terms}` : "Contado"}
-                </div>
+              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600 tabular-nums">
+                {c.payment_terms ? `Neto ${c.payment_terms}` : "Contado"}
+              </div>
+              <div className="pointer-events-none relative z-10 text-right text-sm font-semibold tabular-nums">
+                {Number(c.balance) === 0 ? (
+                  <span className="text-neutral-400">—</span>
+                ) : (
+                  usd(c.balance)
+                )}
+              </div>
+
+              {/* z-20 + pointer-events-auto: estos van ENCIMA del enlace estirado */}
+              <div className="relative z-20 flex items-center justify-end gap-1">
+                <button
+                  onClick={() => setForm({ ...c })}
+                  className="accion"
+                  title="Editar cliente"
+                >
+                  <Pencil className="size-[15px]" />
+                </button>
+                <button
+                  onClick={() => setABorrar(c)}
+                  disabled={Number(c.balance) !== 0}
+                  title={
+                    Number(c.balance) !== 0
+                      ? "Solo se puede eliminar un cliente con saldo 0"
+                      : "Eliminar cliente"
+                  }
+                  className="accion"
+                >
+                  <Trash2 className="size-[15px]" />
+                </button>
               </div>
             </div>
-
-            {/* pointer-events-none on the ROW, not just the label: the label
-                alone lets the click through, but then it lands on this wrapper,
-                which sits at z-10 — above the stretched link at z-0 — and dies
-                there. The two buttons re-enable pointer events for themselves. */}
-            <div className="pointer-events-none relative z-10 flex items-center gap-2">
-              {/* The standing cue that the card itself is the way in */}
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-                Ver estado de cuenta
-                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-              </span>
-
-              {/* z-20 + pointer-events-auto: these sit ABOVE the stretched link */}
-              <button
-                onClick={() => setForm({ ...c })}
-                className="pointer-events-auto relative z-20 ml-auto grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm"
-                title="Editar cliente"
-              >
-                <Pencil className="size-4" />
-              </button>
-              <button
-                onClick={() => setABorrar(c)}
-                disabled={Number(c.balance) !== 0}
-                title={
-                  Number(c.balance) !== 0
-                    ? "Solo se puede eliminar un cliente con saldo 0"
-                    : "Eliminar cliente"
-                }
-                className="pointer-events-auto relative z-20 grid size-8 place-items-center rounded-full bg-paper transition-shadow hover:shadow-sm disabled:opacity-35 disabled:hover:shadow-none"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Confirmar
         abierto={Boolean(aBorrar)}

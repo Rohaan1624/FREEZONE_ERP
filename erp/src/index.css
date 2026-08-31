@@ -235,6 +235,85 @@
   }
 }
 
+/* ------------------------------------------------------- sistema de listas */
+/* Las pantallas de datos (facturas, clientes, productos, entradas) son un
+   MAYOR, no un tablero: superficies de papel blanco con filete, renglones
+   separados por reglas y no tarjetas flotando con hueco entre ellas.
+   Los radios salen de la escala declarada arriba — 2px en controles, 4px en
+   superficies —, no de valores sueltos tipo rounded-[22px].
+
+   OJO con el nombre: `.hoja` ya existe más abajo y es la hoja IMPRIMIBLE de la
+   factura, con sus overrides de @media print. Reusarla aquí le habría aplicado
+   estilos de impresión a todas las tablas de la app. */
+@layer components {
+  /* Superficie de registro. */
+  .registro {
+    @apply rounded-2xl border border-neutral-300 bg-white;
+  }
+
+  /* Banda de encabezado de una tabla dentro de .registro */
+  .registro-cab {
+    @apply border-b border-neutral-300 bg-paper px-4 py-2;
+  }
+
+  /* Renglón. La regla se declara ENTRE hermanos, así que el primero no la
+     lleva (el encabezado ya cierra con la suya) y el marcado se olvida del
+     índice: nada de `i > 0 && "border-t"` repetido en cada página. */
+  .registro-fila + .registro-fila {
+    @apply border-t border-neutral-200;
+  }
+
+  /* Rótulo en versalitas: encabezados de columna y etiquetas de campo. */
+  .rotulo {
+    @apply text-[10px] tracking-[0.1em] text-neutral-600 uppercase;
+  }
+
+  /* Campo de captura: rectángulo que alinea en columna. */
+  .casilla {
+    @apply rounded-md border border-neutral-300 bg-white px-3 py-2;
+  }
+  .casilla:focus-within {
+    @apply border-ink;
+  }
+
+  /* Panel de formulario: el chrome va tintado y los campos blancos encima —
+     el papel donde se escribe es lo blanco. */
+  .panel {
+    @apply rounded-2xl border border-neutral-300 bg-paper p-5;
+  }
+
+  /* Controles */
+  .boton {
+    @apply flex h-9 items-center gap-2 rounded-md px-4 text-sm;
+  }
+  .boton-ink {
+    @apply bg-ink text-paper disabled:opacity-40;
+  }
+  .boton-claro {
+    @apply border border-neutral-300 bg-white disabled:opacity-40;
+  }
+  .entrada-texto {
+    @apply h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm outline-none;
+  }
+  .entrada-texto:focus-visible {
+    @apply border-ink;
+  }
+
+  /* Botón fantasma de acción en un renglón (editar, borrar). */
+  .accion {
+    @apply grid size-7 place-items-center rounded-md text-neutral-600;
+  }
+  .accion:hover {
+    @apply bg-newsprint text-ink;
+  }
+  .accion:disabled {
+    @apply opacity-30;
+  }
+  .accion:disabled:hover {
+    @apply bg-transparent;
+  }
+}
+
 /* ---------------------------------------------------------------- impresión */
 /* La factura y el packing list se imprimen desde el navegador ("Guardar como
    PDF"), así que la hoja tiene que quedarse sola: sin barra de navegación, sin

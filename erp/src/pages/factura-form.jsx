@@ -69,7 +69,7 @@ const GRID = {
   miscellaneous: "grid-cols-[minmax(0,1.7fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
   charge: "grid-cols-[minmax(0,2fr)_86px_92px_minmax(0,0.8fr)_34px]",
 }
-const TH = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+const TH = "rotulo"
 const SUB = "block text-[9px] normal-case tracking-normal"
 
 /**
@@ -239,7 +239,7 @@ export default function FacturaForm() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (editando && !original) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Esa factura no existe</div>
         <Link to="/facturas" className="mt-4 inline-block text-[13px] underline underline-offset-2">
           Volver a facturas
@@ -249,7 +249,7 @@ export default function FacturaForm() {
   }
 
   const campo =
-    "h-8 rounded-full bg-newsprint px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
+    "entrada-texto h-8 px-2.5"
 
   return (
     <div className="flex flex-col gap-3">
@@ -261,10 +261,10 @@ export default function FacturaForm() {
         {editando ? "Descartar cambios" : "Cancelar y volver"}
       </Link>
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
-            <div className="text-[11px] tracking-[0.12em] text-neutral-700 uppercase">
+            <div className="rotulo">
               {editando ? "Edición" : "Captura"}
             </div>
             <h2 className="m-0 text-[25px] font-semibold">
@@ -279,7 +279,7 @@ export default function FacturaForm() {
           <button
             onClick={guardar}
             disabled={!puedeGuardar}
-            className="ml-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+            className="boton boton-ink ml-auto"
           >
             <Check className="size-4" />
             {guardando ? "Guardando…" : editando ? "Guardar cambios" : "Emitir factura"}
@@ -287,8 +287,8 @@ export default function FacturaForm() {
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
-          <div className="rounded-2xl bg-paper px-4 py-2.5">
-            <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">Cliente</span>
+          <div className="casilla px-4 py-2.5">
+            <span className="rotulo">Cliente</span>
             <div className="flex items-center gap-2">
               <select
                 value={clienteId}
@@ -307,15 +307,15 @@ export default function FacturaForm() {
                 type="button"
                 onClick={() => setNuevoCliente(true)}
                 title="Crear un cliente sin salir de la factura"
-                className="grid size-7 shrink-0 place-items-center rounded-full bg-newsprint"
+                className="accion shrink-0"
               >
                 <UserPlus className="size-4" />
               </button>
             </div>
           </div>
 
-          <label className="block rounded-2xl bg-paper px-4 py-2.5">
-            <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+          <label className="block casilla px-4 py-2.5">
+            <span className="rotulo">
               Condiciones de pago
             </span>
             <select
@@ -331,8 +331,8 @@ export default function FacturaForm() {
             </select>
           </label>
 
-          <label className="block rounded-2xl bg-paper px-4 py-2.5">
-            <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">Vence</span>
+          <label className="block casilla px-4 py-2.5">
+            <span className="rotulo">Vence</span>
             <input
               type="date"
               value={vence}
@@ -344,8 +344,8 @@ export default function FacturaForm() {
             </span>
           </label>
 
-          <div className="rounded-2xl bg-paper px-4 py-2.5">
-            <div className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+          <div className="casilla px-4 py-2.5">
+            <div className="rotulo">
               Saldo del cliente
             </div>
             <div className="mt-1 text-base tabular-nums">{usd(cliente?.balance ?? 0)}</div>
@@ -390,7 +390,7 @@ export default function FacturaForm() {
       {/* Datos de embarque — colapsado por defecto: son opcionales y la mayoría
           de las facturas no los usan, pero cuando hacen falta salen impresos
           tanto en la factura como en el packing list. */}
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <button
           onClick={() => setVerEmbarque((v) => !v)}
           className="flex w-full items-center gap-3 text-left"
@@ -408,8 +408,8 @@ export default function FacturaForm() {
         {verEmbarque && (
           <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
             {EMBARQUE.map(([k, etiqueta, ph]) => (
-              <label key={k} className="block rounded-2xl bg-paper px-4 py-2.5">
-                <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+              <label key={k} className="block casilla px-4 py-2.5">
+                <span className="rotulo">
                   {etiqueta}
                 </span>
                 <input
@@ -426,15 +426,16 @@ export default function FacturaForm() {
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.56fr)]">
         <div className="flex flex-col gap-3">
-          <section className="rounded-[22px] bg-newsprint p-6">
+          <section className="registro p-6">
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div className="inline-flex gap-1 rounded-full bg-paper p-1">
-                {TABS.map(({ id, label, icon: Icon }) => (
+              <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
+                {TABS.map(({ id, label, icon: Icon }, i) => (
                   <button
                     key={id}
                     onClick={() => setTab(id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px]",
+                      "flex items-center gap-1.5 px-4 py-1.5 text-[13px] transition-colors",
+                      i > 0 && "border-l border-neutral-300",
                       tab === id ? "bg-ink text-paper" : "text-ink"
                     )}
                   >
@@ -457,12 +458,12 @@ export default function FacturaForm() {
                       }
                     }}
                     placeholder="Buscar SKU para agregar"
-                    className="h-9 w-[250px] rounded-full bg-paper px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                    className="entrada-texto w-[250px]"
                   />
                   <button
                     onClick={() => setNuevoSku(true)}
                     title="Crear un SKU sin salir de la factura"
-                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-paper px-3 py-2 text-[13px]"
+                    className="boton boton-claro shrink-0 gap-1.5 text-[13px]"
                   >
                     <PackagePlus className="size-4" />
                     Nuevo SKU
@@ -471,7 +472,7 @@ export default function FacturaForm() {
               ) : (
                 <button
                   onClick={() => setLineas((ls) => agrega(ls, lineaSuelta(tab)))}
-                  className="ml-auto flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-[13px]"
+                  className="boton boton-claro ml-auto text-[13px]"
                 >
                   <Plus className="size-4" />
                   Agregar renglón
@@ -486,7 +487,7 @@ export default function FacturaForm() {
             {tab === "product" && busca.trim() && sugerencias.length === 0 && (
               <button
                 onClick={() => setNuevoSku(true)}
-                className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-paper p-3 text-left text-[13px] hover:shadow-sm"
+                className="mb-3 flex w-full items-center gap-2 casilla p-3 text-left text-[13px] hover:shadow-sm"
               >
                 <PackagePlus className="size-4 shrink-0" />
                 <span>
@@ -496,7 +497,7 @@ export default function FacturaForm() {
             )}
 
             {sugerencias.length > 0 && (
-              <div className="mb-3 rounded-2xl bg-paper/60 p-2">
+              <div className="mb-3 casilla/60 p-2">
                 <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
                   <CornerDownLeft className="size-3.5" />
                   Haz clic en un SKU para agregarlo — o pulsa Enter para el primero
@@ -506,7 +507,7 @@ export default function FacturaForm() {
                     <button
                       key={p.id}
                       onClick={() => agregar(p)}
-                      className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 rounded-xl bg-paper p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1 focus-visible:ring-2 focus-visible:outline-none"
+                      className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 casilla p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1 focus-visible:ring-2 focus-visible:outline-none"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm">{p.description || p.sku}</div>
@@ -521,7 +522,7 @@ export default function FacturaForm() {
                       <div className="text-sm tabular-nums">
                         {p.sale_price == null ? "sin precio" : usd(p.sale_price)}
                       </div>
-                      <span className="flex items-center gap-1.5 rounded-full bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
+                      <span className="flex items-center gap-1.5 rounded-md bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
                         <PlusCircle className="size-4" />
                         Agregar
                         {i === 0 && (
@@ -537,7 +538,7 @@ export default function FacturaForm() {
             )}
 
             {visibles.length === 0 && (
-              <div className="rounded-2xl bg-paper p-10 text-center">
+              <div className="casilla p-10 text-center">
                 <div className="text-base font-semibold">
                   {tab === "product" ? "Busca un SKU arriba para agregarlo" : "Sin renglones"}
                 </div>
@@ -575,7 +576,7 @@ export default function FacturaForm() {
 
             <div className="flex flex-col gap-2">
               {visibles.map((l) => (
-                <div key={l.id} className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID[l.type])}>
+                <div key={l.id} className={cn("grid items-center gap-2 casilla p-3", GRID[l.type])}>
                   {/* concepto */}
                   {l.type === "product" ? (
                     <div className="min-w-0">
@@ -598,13 +599,14 @@ export default function FacturaForm() {
 
                   {/* Only products convert, so only they choose which field drives. */}
                   {convierteBultos(l.type) && (
-                    <div className="inline-flex gap-0.5 rounded-full bg-newsprint p-0.5">
+                    <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
                       {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
                         <button
                           key={m}
                           onClick={() => set(l.id, { modo: m })}
                           className={cn(
-                            "rounded-full px-2 py-1 text-[11px]",
+                            "px-2 py-1 text-[11px] transition-colors",
+                            m === "bultos" && "border-l border-neutral-300",
                             l.modo === m ? "bg-ink text-paper" : "text-ink"
                           )}
                         >
@@ -666,7 +668,7 @@ export default function FacturaForm() {
                   <button
                     onClick={() => quitar(l.id)}
                     title="Quitar renglón"
-                    className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                    className="accion justify-self-end"
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -681,18 +683,18 @@ export default function FacturaForm() {
             </datalist>
           </section>
 
-          <section className="rounded-[22px] bg-newsprint p-6">
+          <section className="registro p-6">
             <h4 className="m-0 mb-3 font-semibold">Notas al cliente</h4>
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
               placeholder="Instrucciones de entrega, acuerdos de precio, referencias…"
-              className="min-h-[88px] w-full resize-y rounded-2xl bg-paper px-4 py-3 text-sm outline-none"
+              className="min-h-[88px] w-full resize-y casilla px-4 py-3 text-sm outline-none"
             />
           </section>
         </div>
 
-        <aside className="sticky top-4 flex flex-col gap-3 rounded-[22px] bg-newsprint p-6 text-sm">
+        <aside className="sticky top-4 flex flex-col gap-3 registro p-6 text-sm">
           <h4 className="m-0 mb-1 font-semibold">Resumen</h4>
           {TABS.map(({ id, label }) => {
             const sub = subtotalTipo(lineas, id)
@@ -707,7 +709,7 @@ export default function FacturaForm() {
             <span className="text-neutral-700">Bultos totales</span>
             <span className="tabular-nums">{bultosTotales ? n0(bultosTotales) : "—"}</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between rounded-[14px] bg-paper px-3 py-2.5">
+          <div className="mt-1 flex items-baseline justify-between casilla px-3 py-2.5">
             <span className="text-[15px] font-semibold">Total</span>
             <span className="text-[27px] font-semibold tracking-[-0.02em] tabular-nums">
               {usd(total)}
@@ -715,17 +717,17 @@ export default function FacturaForm() {
           </div>
 
           {cortos.length > 0 && (
-            <div className="rounded-[14px] bg-paper p-3 text-[13px]">
+            <div className="casilla p-3 text-[13px]">
               Sin existencia suficiente para {cortos.map((l) => l.sku).join(", ")}. El servidor
               rechazará la factura al emitirla — bájala a borrador o ajusta la cantidad.
             </div>
           )}
-          {error && <div className="rounded-[14px] bg-ink p-3 text-[13px] text-paper">{error}</div>}
+          {error && <div className="rounded-md bg-ink p-3 text-[13px] text-paper">{error}</div>}
 
           <button
             onClick={guardar}
             disabled={!puedeGuardar}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-2.5 text-paper disabled:opacity-40"
+            className="boton boton-ink w-full justify-center"
           >
             <Check className="size-4" />
             {guardando ? "Guardando…" : "Emitir factura"}

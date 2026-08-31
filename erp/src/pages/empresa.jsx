@@ -87,10 +87,10 @@ export default function Empresa() {
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
-            <div className="text-[11px] tracking-[0.12em] text-neutral-700 uppercase">
+            <div className="rotulo">
               Configuración
             </div>
             <h2 className="m-0 text-[25px] font-semibold">Datos de la empresa</h2>
@@ -101,7 +101,7 @@ export default function Empresa() {
           <button
             onClick={guardar}
             disabled={!sucio || guardando}
-            className="ml-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+            className="boton boton-ink ml-auto"
           >
             <Check className="size-4" />
             {guardando ? "Guardando…" : guardado && !sucio ? "Guardado" : "Guardar cambios"}
@@ -112,9 +112,9 @@ export default function Empresa() {
           {CAMPOS.map((c) => (
             <label
               key={c.k}
-              className={`block rounded-2xl bg-paper px-4 py-2.5 ${c.ancho ? "col-span-full" : ""}`}
+              className={`block casilla px-4 py-2.5 ${c.ancho ? "col-span-full" : ""}`}
             >
-              <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+              <span className="rotulo">
                 {c.label}
                 {c.required && " *"}
               </span>
@@ -129,8 +129,8 @@ export default function Empresa() {
           ))}
         </div>
 
-        <label className="mt-2.5 block rounded-2xl bg-paper px-4 py-2.5">
-          <span className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">Dirección</span>
+        <label className="mt-2.5 block casilla px-4 py-2.5">
+          <span className="rotulo">Dirección</span>
           <textarea
             value={form.address ?? ""}
             onChange={(e) => set("address", e.target.value)}
@@ -144,18 +144,18 @@ export default function Empresa() {
         </label>
 
         {error && (
-          <div className="mt-3 flex items-center gap-2.5 rounded-[14px] bg-paper px-3 py-2.5 text-[13px]">
+          <div className="mt-3 flex items-center gap-2.5 casilla px-3 py-2.5 text-[13px]">
             <CircleAlert className="size-[19px] shrink-0" />
             <span>{error}</span>
           </div>
         )}
       </section>
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <h4 className="m-0 mb-3 font-semibold">Numeración de facturas</h4>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="rounded-2xl bg-paper px-4 py-3">
-            <div className="text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+          <div className="casilla px-4 py-3">
+            <div className="rotulo">
               Próximo folio
             </div>
             <div className="text-[21px] font-semibold tabular-nums">{proximoFolio}</div>

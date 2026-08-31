@@ -39,7 +39,7 @@ function Dialogo({ abierto, titulo, icono: Icono, children, onCancelar, onGuarda
       onClick={(e) => {
         if (e.target === ref.current && !guardando) onCancelar()
       }}
-      className="m-auto w-[min(94vw,560px)] rounded-[22px] bg-newsprint p-0 text-ink backdrop:bg-ink/45"
+      className="m-auto w-[min(94vw,560px)] registro p-0 text-ink backdrop:bg-ink/45"
     >
       <form
         method="dialog"
@@ -58,7 +58,7 @@ function Dialogo({ abierto, titulo, icono: Icono, children, onCancelar, onGuarda
             type="button"
             onClick={() => !guardando && onCancelar()}
             aria-label="Cerrar"
-            className="ml-auto grid size-8 place-items-center rounded-full bg-paper"
+            className="accion ml-auto size-8"
           >
             <X className="size-4" />
           </button>
@@ -67,7 +67,7 @@ function Dialogo({ abierto, titulo, icono: Icono, children, onCancelar, onGuarda
         <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">{children}</div>
 
         {error && (
-          <div className="flex items-center gap-2.5 rounded-[14px] bg-paper px-3 py-2.5 text-[13px]">
+          <div className="flex items-center gap-2.5 casilla px-3 py-2.5 text-[13px]">
             <CircleAlert className="size-[19px] shrink-0" />
             <span>{error}</span>
           </div>
@@ -77,14 +77,14 @@ function Dialogo({ abierto, titulo, icono: Icono, children, onCancelar, onGuarda
           <button
             type="button"
             onClick={() => !guardando && onCancelar()}
-            className="rounded-full bg-paper px-4 py-2 text-sm"
+            className="boton boton-claro"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={guardando}
-            className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+            className="boton boton-ink"
           >
             <Check className="size-4" />
             {guardando ? "Guardando…" : "Crear y usar"}
@@ -95,8 +95,8 @@ function Dialogo({ abierto, titulo, icono: Icono, children, onCancelar, onGuarda
   )
 }
 
-const tile = "block rounded-2xl bg-paper px-4 py-2.5"
-const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+const tile = "block casilla px-4 py-2.5"
+const rotulo = "rotulo"
 const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
 
 function Campo({ etiqueta, ancho, mono, ...props }) {

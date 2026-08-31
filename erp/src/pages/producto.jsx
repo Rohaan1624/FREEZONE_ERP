@@ -65,7 +65,7 @@ export default function Producto() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (!prod) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Ese producto no existe</div>
         <Link to="/productos" className="mt-4 inline-block text-[13px] underline underline-offset-2">
           Volver al catálogo
@@ -97,7 +97,7 @@ export default function Producto() {
   const salidas = movs.filter((m) => Number(m.qty_delta) < 0).reduce((t, m) => t - Number(m.qty_delta), 0)
   const valor = mul(prod.stock ?? 0, prod.cost_price ?? 0)
 
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  const rotulo = "rotulo"
   const GRID = "grid-cols-[40px_96px_minmax(0,1.1fr)_minmax(0,1.5fr)_88px_88px_100px_26px]"
 
   return (
@@ -108,15 +108,15 @@ export default function Producto() {
       </Link>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="flex items-center gap-2.5 registro px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="flex flex-wrap items-start gap-4">
-          <span className="grid size-14 shrink-0 place-items-center rounded-[18px] bg-paper">
+          <span className="grid size-14 shrink-0 place-items-center casilla">
             <Package className="size-7 text-neutral-700" />
           </span>
           <div className="min-w-0">
@@ -136,7 +136,7 @@ export default function Producto() {
         </div>
 
         <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Existencia</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {n0(prod.stock)}
@@ -145,7 +145,7 @@ export default function Producto() {
               {prod.qty_unit > 1 ? `${n0(Math.floor(prod.stock / prod.qty_unit))} bultos` : " "}
             </div>
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Valuado a costo</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {prod.cost_price == null ? "—" : usd(valor)}
@@ -154,7 +154,7 @@ export default function Producto() {
               {prod.cost_price == null ? "sin costo capturado" : `costo ${usd(prod.cost_price)}`}
             </div>
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Precio</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {prod.sale_price == null ? "—" : usd(prod.sale_price)}
@@ -164,7 +164,7 @@ export default function Producto() {
               {markupTexto(prod.cost_price, prod.sale_price)} sobre costo
             </div>
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Movimientos</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {n0(movs.length)}
@@ -176,19 +176,20 @@ export default function Producto() {
         </div>
       </section>
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h4 className="m-0 font-semibold">Movimientos</h4>
           <span className="text-[12px] text-neutral-700 tabular-nums">
             apertura {n0(apertura)} → existencia actual {n0(prod.stock)}
           </span>
-          <div className="ml-auto inline-flex gap-1 rounded-full bg-paper p-1">
-            {FILTROS.map(([k, etiqueta]) => (
+          <div className="ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">
+            {FILTROS.map(([k, etiqueta], i) => (
               <button
                 key={k}
                 onClick={() => setFiltro(k)}
                 className={cn(
-                  "rounded-full px-3 py-1 text-[12px]",
+                  "px-3 py-1.5 text-[12px] transition-colors",
+                  i > 0 && "border-l border-neutral-300",
                   filtro === k ? "bg-ink text-paper" : "text-ink"
                 )}
               >
@@ -199,14 +200,14 @@ export default function Producto() {
         </div>
 
         {visibles.length === 0 ? (
-          <div className="rounded-xl bg-paper p-8 text-center text-[13px] text-neutral-700">
+          <div className="casilla p-8 text-center text-[13px] text-neutral-700">
             {movs.length === 0
               ? "Este SKU todavía no tiene movimientos. La existencia sube al cerrar una entrada y baja al emitir una factura."
               : "Ningún movimiento de ese tipo."}
           </div>
         ) : (
           <>
-            <div className={cn("grid gap-3 px-3 pb-2", GRID, rotulo)}>
+            <div className={cn("grid gap-3 border-b border-neutral-300 px-1 pb-2", GRID, rotulo)}>
               <div />
               <div>Fecha</div>
               <div>Documento</div>
@@ -216,7 +217,7 @@ export default function Producto() {
               <div className="text-right">Existencia</div>
               <div />
             </div>
-            <div className="flex flex-col gap-2">
+            <div>
               {visibles.map((m) => {
                 const f = FUENTE[m.source] ?? {}
                 const Icono = f.icono ?? Package
@@ -226,7 +227,7 @@ export default function Producto() {
                     key={`${m.source}-${m.id}`}
                     to={f.ruta ? f.ruta(m.source_id) : "#"}
                     className={cn(
-                      "grid items-center gap-3 rounded-[14px] bg-paper p-3 transition-shadow hover:shadow-sm",
+                      "registro-fila grid items-center gap-3 px-1 py-2.5 transition-colors hover:bg-neutral-100",
                       GRID
                     )}
                   >

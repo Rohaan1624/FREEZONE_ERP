@@ -56,7 +56,7 @@ export function LoginForm({ className, onEntrar, onRecuperar, ...props }) {
             <CardTitle className="text-[25px]">Revisa tu correo</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-start gap-2.5 rounded-[14px] bg-paper px-3 py-3 text-[13px]">
+            <div className="flex items-start gap-2.5 rounded-md border border-neutral-300 bg-paper px-3 py-3 text-[13px]">
               <MailCheck className="mt-px size-[19px] shrink-0" />
               <span>
                 Si <strong>{correo.trim()}</strong> tiene una cuenta, le enviamos un enlace para
@@ -122,7 +122,7 @@ export function LoginForm({ className, onEntrar, onRecuperar, ...props }) {
               )}
 
               {error && (
-                <div className="flex items-center gap-2.5 rounded-[14px] bg-paper px-3 py-2.5 text-[13px]">
+                <div className="flex items-center gap-2.5 rounded-md border border-neutral-300 bg-paper px-3 py-2.5 text-[13px]">
                   <CircleAlert className="size-[19px] shrink-0" />
                   <span>{error}</span>
                 </div>

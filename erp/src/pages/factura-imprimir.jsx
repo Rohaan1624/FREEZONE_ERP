@@ -60,7 +60,7 @@ export default function FacturaImprimir() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (!inv) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Esa factura no existe</div>
         <Link to="/facturas" className="mt-4 inline-block text-[13px] underline underline-offset-2">
           Volver a facturas
@@ -112,17 +112,18 @@ export default function FacturaImprimir() {
           <ArrowLeft className="size-4" />
           Volver a la factura
         </Link>
-        <div className="ml-auto inline-flex gap-1 rounded-full bg-newsprint p-1">
+        <div className="ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">
           {[
             ["factura", "Factura", FileText],
             ["packing", "Packing list", PackageCheck],
-          ].map(([k, etiq, Icon]) => (
+          ].map(([k, etiq, Icon], i) => (
             <button
               key={k}
               onClick={() => setDoc(k)}
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px]",
-                doc === k ? "bg-ink text-paper" : "text-ink"
+                "flex items-center gap-1.5 px-4 py-1.5 text-[13px] transition-colors",
+                i > 0 && "border-l border-neutral-300",
+                doc === k ? "bg-ink font-semibold text-paper" : "bg-white text-neutral-600 hover:text-ink"
               )}
             >
               <Icon className="size-4" />
@@ -146,7 +147,7 @@ export default function FacturaImprimir() {
             }
           }}
           disabled={generando}
-          className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+          className="boton boton-ink"
         >
           <Download className="size-4" />
           {generando ? "Generando…" : "Descargar PDF"}
@@ -154,14 +155,14 @@ export default function FacturaImprimir() {
         <button
           onClick={() => window.print()}
           title="Abrir el diálogo de impresión"
-          className="grid size-9 place-items-center rounded-full bg-newsprint"
+          className="accion size-9"
         >
           <Printer className="size-4" />
         </button>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px] print:hidden">
+        <div className="registro flex items-center gap-2.5 px-4 py-3 text-[13px] print:hidden">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>

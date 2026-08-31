@@ -16,7 +16,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
-import { usd, fecha, estadoFactura, TONO_CLASE } from "@/lib/format"
+import { usd, fecha, estadoFactura, TONO_TEXTO } from "@/lib/format"
 import { antiguedad } from "@/lib/resumen"
 import { M, add, sub, sumar, centavos, esNegativo } from "@/lib/dinero"
 
@@ -88,7 +88,7 @@ export default function Cliente() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (!cliente) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Ese cliente no existe</div>
         <Link to="/clientes" className="mt-4 inline-block text-[13px] underline underline-offset-2">
           Volver a clientes
@@ -158,8 +158,8 @@ export default function Cliente() {
 
   const facturaElegida = aplicables.find((f) => f.id === pago?.invoice_id)
 
-  const btn = "flex items-center gap-2 rounded-full px-4 py-2 text-sm disabled:opacity-40"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  const btn = "boton"
+  const rotulo = "rotulo"
 
   return (
     <div className="flex flex-col gap-3">
@@ -169,15 +169,15 @@ export default function Cliente() {
       </Link>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="flex items-center gap-2.5 registro px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="flex flex-wrap items-start gap-4">
-          <span className="grid size-14 shrink-0 place-items-center rounded-[18px] bg-paper">
+          <span className="grid size-14 shrink-0 place-items-center casilla">
             <Store className="size-7 text-neutral-700" />
           </span>
           <div className="min-w-0">
@@ -199,12 +199,12 @@ export default function Cliente() {
                 setPago({ amount: "", method: "bank_transfer", notes: "", invoice_id: "" })
               }
               disabled={ocupado}
-              className={cn(btn, "bg-ink text-paper")}
+              className={cn(btn, "boton-ink")}
             >
               <HandCoins className="size-4" />
               Registrar pago
             </button>
-            <Link to="/facturas/nueva" className={cn(btn, "bg-paper")}>
+            <Link to="/facturas/nueva" className={cn(btn, "boton-claro")}>
               <Plus className="size-4" />
               Nueva factura
             </Link>
@@ -212,7 +212,7 @@ export default function Cliente() {
         </div>
 
         <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-2.5">
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Saldo actual</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {usd(cliente.balance)}
@@ -221,7 +221,7 @@ export default function Cliente() {
               <div className="text-[11px] text-neutral-700">a favor del cliente</div>
             )}
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Por cobrar</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {usd(porCobrar)}
@@ -230,13 +230,13 @@ export default function Cliente() {
               {facturas.filter((f) => f.status !== "draft").length} facturas emitidas
             </div>
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Condiciones</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {cliente.payment_terms ? `Neto ${cliente.payment_terms}` : "Contado"}
             </div>
           </div>
-          <div className="rounded-2xl bg-paper px-4 py-3">
+          <div className="casilla px-4 py-3">
             <div className={rotulo}>Pagos a cuenta</div>
             <div className="text-[30px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
               {sinAplicar ? usd(sinAplicar) : "—"}
@@ -247,7 +247,7 @@ export default function Cliente() {
       </section>
 
       {pago && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="registro p-6">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Registrar pago</h4>
             <span className="text-[13px] text-neutral-700">
@@ -256,7 +256,7 @@ export default function Cliente() {
                 : "queda a cuenta del cliente"}
             </span>
             <div className="ml-auto flex gap-2">
-              <button onClick={() => setPago(null)} className={cn(btn, "bg-paper")}>
+              <button onClick={() => setPago(null)} className={cn(btn, "boton-claro")}>
                 <X className="size-4" />
                 Cancelar
               </button>
@@ -278,7 +278,7 @@ export default function Cliente() {
                   setPago(null)
                 }}
                 disabled={ocupado}
-                className={cn(btn, "bg-ink text-paper")}
+                className={cn(btn, "boton-ink")}
               >
                 <Check className="size-4" />
                 Guardar pago
@@ -286,7 +286,7 @@ export default function Cliente() {
             </div>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Aplicar a</span>
               <select
                 value={pago.invoice_id}
@@ -310,7 +310,7 @@ export default function Cliente() {
                 ))}
               </select>
             </label>
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Monto</span>
               <input
                 value={pago.amount}
@@ -320,7 +320,7 @@ export default function Cliente() {
                 className="mt-0.5 w-full bg-transparent text-base tabular-nums outline-none"
               />
             </label>
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Método</span>
               <select
                 value={pago.method}
@@ -334,7 +334,7 @@ export default function Cliente() {
                 ))}
               </select>
             </label>
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Referencia</span>
               <input
                 value={pago.notes}
@@ -353,18 +353,18 @@ export default function Cliente() {
       )}
 
       {porCobrar.gt(0) && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="registro p-6">
           <h4 className="m-0 mb-3 font-semibold">Antigüedad del saldo</h4>
-          <div className="flex flex-col gap-2.5">
+          <div>
             {edades.map((a, i) => (
               <div
                 key={a.k}
-                className="grid grid-cols-[110px_minmax(0,1fr)_104px] items-center gap-3 rounded-xl bg-paper px-3 py-2.5"
+                className="registro-fila grid grid-cols-[110px_minmax(0,1fr)_104px] items-center gap-3 px-1 py-3"
               >
                 <div className="text-xs text-ink/62">{a.k}</div>
-                <div className="h-3 overflow-hidden rounded-full bg-ink/8">
+                <div className="h-2.5 overflow-hidden rounded-sm bg-neutral-200">
                   <div
-                    className="h-full rounded-full"
+                    className="h-full rounded-sm"
                     style={{
                       width: `${Math.max(2, (a.num / maxEdad) * 100)}%`,
                       background: RAMPA_EDAD[i],
@@ -379,7 +379,7 @@ export default function Cliente() {
         </section>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h4 className="m-0 font-semibold">Movimientos</h4>
           <div className="ml-auto flex gap-4 text-xs">
@@ -395,13 +395,13 @@ export default function Cliente() {
         </div>
 
         {enOrden.length === 0 ? (
-          <div className="rounded-xl bg-paper p-8 text-center text-[13px] text-neutral-700">
+          <div className="casilla p-8 text-center text-[13px] text-neutral-700">
             Sin movimientos. Las facturas en borrador no aparecen aquí: no se debe nada hasta
             emitirlas.
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[40px_96px_minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_110px_34px] gap-3 px-3 pb-2 text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+            <div className="grid grid-cols-[40px_96px_minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_110px_34px] gap-3 border-b border-neutral-300 px-1 pb-2 rotulo">
               <div />
               <div>Fecha</div>
               <div>Concepto</div>
@@ -411,11 +411,11 @@ export default function Cliente() {
               <div className="text-right">Saldo</div>
               <div />
             </div>
-            <div className="flex flex-col gap-2">
+            <div>
               {enOrden.map((m) => (
                 <div
                   key={m.id}
-                  className="grid grid-cols-[40px_96px_minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_110px_34px] items-center gap-3 rounded-[14px] bg-paper p-3"
+                  className="registro-fila grid grid-cols-[40px_96px_minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_110px_34px] items-center gap-3 px-1 py-2.5"
                 >
                   <span className="grid size-8 place-items-center rounded-xl bg-newsprint">
                     {m.tipo === "cargo" ? (
@@ -452,7 +452,7 @@ export default function Cliente() {
                       }}
                       disabled={ocupado}
                       title="Eliminar pago"
-                      className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                      className="accion justify-self-end"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -466,14 +466,14 @@ export default function Cliente() {
         )}
       </section>
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <h4 className="m-0 mb-3 font-semibold">Facturas del cliente</h4>
         {facturas.length === 0 ? (
-          <div className="rounded-xl bg-paper p-8 text-center text-[13px] text-neutral-700">
+          <div className="casilla p-8 text-center text-[13px] text-neutral-700">
             Este cliente todavía no tiene facturas.
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div>
             {facturas
               .slice()
               .sort((a, b) => (a.date_created < b.date_created ? 1 : -1))
@@ -483,7 +483,7 @@ export default function Cliente() {
                   <Link
                     key={f.id}
                     to={`/facturas/${f.id}`}
-                    className="grid grid-cols-[minmax(90px,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.95fr)_26px] items-center gap-3 rounded-[14px] bg-paper p-3 transition-shadow hover:shadow-sm"
+                    className="registro-fila grid grid-cols-[minmax(90px,0.9fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.95fr)_26px] items-center gap-3 px-1 py-2.5 transition-colors hover:bg-neutral-100"
                   >
                     <div className="text-sm font-semibold">{f.invoice_num}</div>
                     <div className="text-[13px] text-neutral-700 tabular-nums">
@@ -496,8 +496,8 @@ export default function Cliente() {
                     <div>
                       <span
                         className={cn(
-                          "inline-block rounded-full px-3 py-1 text-xs",
-                          TONO_CLASE[est.tono]
+                          "text-[13px]",
+                          TONO_TEXTO[est.tono]
                         )}
                       >
                         {est.etiqueta}

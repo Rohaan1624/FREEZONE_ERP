@@ -16,7 +16,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
-import { usd, n0, fecha, estadoFactura, TONO_CLASE } from "@/lib/format"
+import { usd, n0, fecha, estadoFactura, TONO_TEXTO } from "@/lib/format"
 import { M, mul, sub, sumar } from "@/lib/dinero"
 
 const METODOS = [
@@ -80,7 +80,7 @@ export default function Factura() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (!inv) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Esa factura no existe</div>
         <div className="mt-1 text-[13px] text-neutral-700">
           Puede haberse eliminado, o pertenecer a otra cuenta.
@@ -100,8 +100,8 @@ export default function Factura() {
   const esActiva = inv.status === "active"
   const esCerrada = inv.status === "closed"
 
-  const btn = "flex items-center gap-2 rounded-full px-4 py-2 text-sm disabled:opacity-40"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  const btn = "boton"
+  const rotulo = "rotulo"
 
   return (
     <div className="flex flex-col gap-3">
@@ -111,20 +111,20 @@ export default function Factura() {
       </Link>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="flex items-center gap-2.5 registro px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
             <div className={rotulo}>Factura de venta</div>
             <div className="mt-0.5 flex items-center gap-3">
               <h2 className="m-0 text-[25px] font-semibold">{inv.invoice_num}</h2>
               <span
-                className={cn("rounded-full px-3 py-1 text-xs", TONO_CLASE[est.tono])}
+                className={cn("text-[13px]", TONO_TEXTO[est.tono])}
               >
                 {est.etiqueta}
               </span>
@@ -133,13 +133,13 @@ export default function Factura() {
           </div>
 
           <div className="ml-auto flex flex-wrap gap-2">
-            <Link to={`/facturas/${id}/imprimir`} className={cn(btn, "bg-paper")}>
+            <Link to={`/facturas/${id}/imprimir`} className={cn(btn, "boton-claro")}>
               <Printer className="size-4" />
               Imprimir
             </Link>
             {/* No edit on a closed invoice — update_invoice refuses it. */}
             {!esCerrada && (
-              <Link to={`/facturas/${id}/editar`} className={cn(btn, "bg-paper")}>
+              <Link to={`/facturas/${id}/editar`} className={cn(btn, "boton-claro")}>
                 <Pencil className="size-4" />
                 Editar
               </Link>
@@ -148,7 +148,7 @@ export default function Factura() {
               <button
                 onClick={() => accion("set_invoice_status", { p_invoice_id: id, p_status: "active" })}
                 disabled={ocupado}
-                className={cn(btn, "bg-ink text-paper")}
+                className={cn(btn, "boton-ink")}
                 title="Descuenta el inventario"
               >
                 <Check className="size-4" />
@@ -166,7 +166,7 @@ export default function Factura() {
                     })
                   }
                   disabled={ocupado}
-                  className={cn(btn, "bg-ink text-paper")}
+                  className={cn(btn, "boton-ink")}
                 >
                   <HandCoins className="size-4" />
                   Registrar pago
@@ -174,7 +174,7 @@ export default function Factura() {
                 <button
                   onClick={() => accion("set_invoice_status", { p_invoice_id: id, p_status: "draft" })}
                   disabled={ocupado}
-                  className={cn(btn, "bg-paper")}
+                  className={cn(btn, "boton-claro")}
                   title="Devuelve el inventario y vuelve a borrador"
                 >
                   <Undo2 className="size-4" />
@@ -183,7 +183,7 @@ export default function Factura() {
                 <button
                   onClick={() => accion("set_invoice_status", { p_invoice_id: id, p_status: "closed" })}
                   disabled={ocupado}
-                  className={cn(btn, "bg-paper")}
+                  className={cn(btn, "boton-claro")}
                   title="La congela: no se podrá editar ni eliminar"
                 >
                   <Lock className="size-4" />
@@ -202,7 +202,7 @@ export default function Factura() {
                     })
                   }
                   disabled={ocupado}
-                  className={cn(btn, "bg-ink text-paper")}
+                  className={cn(btn, "boton-ink")}
                 >
                   <HandCoins className="size-4" />
                   Registrar pago
@@ -210,7 +210,7 @@ export default function Factura() {
                 <button
                   onClick={() => accion("reopen_invoice", { p_invoice_id: id })}
                   disabled={ocupado}
-                  className={cn(btn, "bg-paper")}
+                  className={cn(btn, "boton-claro")}
                   title="Vuelve a activa. El inventario no se mueve."
                 >
                   <LockOpen className="size-4" />
@@ -225,7 +225,7 @@ export default function Factura() {
                     accion("delete_invoice", { p_invoice_id: id }, true)
                 }}
                 disabled={ocupado}
-                className={cn(btn, "bg-paper")}
+                className={cn(btn, "boton-claro")}
                 title={esActiva ? "Devuelve el inventario y la elimina" : "La elimina"}
               >
                 <Trash2 className="size-4" />
@@ -243,7 +243,7 @@ export default function Factura() {
             ["Contacto", inv.client?.contact ?? inv.client?.email ?? "—"],
             ["Bultos", bultos ? n0(bultos) : "—"],
           ].map(([k, v]) => (
-            <div key={k} className="rounded-[14px] bg-paper px-3 py-3">
+            <div key={k} className="casilla px-3 py-3">
               <div className={rotulo}>{k}</div>
               <div className="truncate text-[15px] tabular-nums">{v}</div>
             </div>
@@ -264,12 +264,12 @@ export default function Factura() {
       </section>
 
       {pago && (
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="registro p-6">
           <div className="mb-4 flex items-center gap-3">
             <h4 className="m-0 font-semibold">Registrar pago</h4>
             <span className="text-[13px] text-neutral-700">saldo {usd(est.saldo)}</span>
             <div className="ml-auto flex gap-2">
-              <button onClick={() => setPago(null)} className={cn(btn, "bg-paper")}>
+              <button onClick={() => setPago(null)} className={cn(btn, "boton-claro")}>
                 <X className="size-4" />
                 Cancelar
               </button>
@@ -287,7 +287,7 @@ export default function Factura() {
                   setPago(null)
                 }}
                 disabled={ocupado}
-                className={cn(btn, "bg-ink text-paper")}
+                className={cn(btn, "boton-ink")}
               >
                 <Check className="size-4" />
                 Guardar pago
@@ -295,7 +295,7 @@ export default function Factura() {
             </div>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Monto</span>
               <input
                 value={pago.amount}
@@ -305,7 +305,7 @@ export default function Factura() {
                 className="mt-0.5 w-full bg-transparent text-base tabular-nums outline-none"
               />
             </label>
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Método</span>
               <select
                 value={pago.method}
@@ -319,7 +319,7 @@ export default function Factura() {
                 ))}
               </select>
             </label>
-            <label className="block rounded-2xl bg-paper px-4 py-2.5">
+            <label className="block casilla px-4 py-2.5">
               <span className={rotulo}>Referencia</span>
               <input
                 value={pago.notes}
@@ -336,9 +336,9 @@ export default function Factura() {
         </section>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="registro p-6">
         <h4 className="m-0 mb-3 font-semibold">Renglones</h4>
-        <div className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] gap-2 px-3 pb-2 text-[10px] tracking-[0.1em] text-ink/50 uppercase">
+        <div className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] gap-2 border-b border-neutral-300 px-1 pb-2 rotulo">
           <div>Tipo</div>
           <div>Descripción</div>
           <div className="text-right">Cantidad</div>
@@ -347,13 +347,13 @@ export default function Factura() {
           <div className="text-right">Precio</div>
           <div className="text-right">Importe</div>
         </div>
-        <div className="flex flex-col gap-2">
+        <div>
           {lineas.map((l) => (
             <div
               key={l.id}
-              className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] items-center gap-2 rounded-[14px] bg-paper p-3"
+              className="registro-fila grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] items-center gap-2 px-1 py-2.5"
             >
-              <span className="rounded-full bg-newsprint px-2 py-1 text-center text-[11px]">
+              <span className="text-[12px] text-neutral-600">
                 {TIPO_LINEA[l.type] ?? l.type}
               </span>
               <div className="min-w-0">
@@ -376,7 +376,7 @@ export default function Factura() {
             </div>
           ))}
           {lineas.length === 0 && (
-            <div className="rounded-2xl bg-paper p-6 text-center text-[13px] text-neutral-700">
+            <div className="casilla p-6 text-center text-[13px] text-neutral-700">
               Esta factura no tiene renglones.
             </div>
           )}
@@ -384,16 +384,16 @@ export default function Factura() {
       </section>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_330px]">
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className="registro p-6">
           <h4 className="m-0 mb-3 font-semibold">Pagos aplicados</h4>
           {pagos.length === 0 && (
             <div className="text-[13px] text-neutral-700">Sin pagos registrados.</div>
           )}
-          <div className="flex flex-col gap-2">
+          <div>
             {pagos.map((p) => (
               <div
                 key={p.id}
-                className="grid grid-cols-[104px_minmax(0,1fr)_minmax(0,1fr)_104px_34px] items-center gap-3 rounded-[14px] bg-paper p-3 text-sm"
+                className="registro-fila grid grid-cols-[104px_minmax(0,1fr)_minmax(0,1fr)_104px_34px] items-center gap-3 px-1 py-2.5 text-sm"
               >
                 <div className="text-[13px] text-neutral-700 tabular-nums">
                   {fecha(p.date_created)}
@@ -408,7 +408,7 @@ export default function Factura() {
                   }}
                   disabled={ocupado}
                   title="Eliminar pago"
-                  className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                  className="accion justify-self-end"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -417,7 +417,7 @@ export default function Factura() {
           </div>
         </section>
 
-        <aside className="flex flex-col gap-2.5 rounded-[22px] bg-newsprint p-6 text-sm">
+        <aside className="flex flex-col gap-2.5 registro p-6 text-sm">
           {["product", "miscellaneous", "charge"].map((t) => {
             const subtotal = sumar(
               lineas.filter((l) => l.type === t),
@@ -430,7 +430,7 @@ export default function Factura() {
               </div>
             )
           })}
-          <div className="mt-1 flex items-baseline justify-between rounded-[14px] bg-paper px-3 py-2.5">
+          <div className="mt-1 flex items-baseline justify-between casilla px-3 py-2.5">
             <span className="text-[15px] font-semibold">Total</span>
             <span className="text-[27px] font-semibold tracking-[-0.02em] tabular-nums">
               {usd(inv.total)}
@@ -445,13 +445,13 @@ export default function Factura() {
             <span className="tabular-nums">{usd(est.saldo)}</span>
           </div>
           {est.pagado.gt(M(inv.total)) && (
-            <div className="rounded-[14px] bg-paper p-3 text-xs">
+            <div className="casilla p-3 text-xs">
               Pagado de más por {usd(sub(est.pagado, inv.total))}. Queda como saldo a favor del
               cliente.
             </div>
           )}
           {inv.notes && (
-            <div className="mt-2 rounded-[14px] bg-paper p-3">
+            <div className="mt-2 casilla p-3">
               <div className={rotulo}>Notas</div>
               <p className="m-0 mt-1 text-[13px] whitespace-pre-wrap">{inv.notes}</p>
             </div>

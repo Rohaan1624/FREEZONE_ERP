@@ -15,16 +15,22 @@ const TABS = [
 
 export function SubNavInventario() {
   return (
-    <nav className="inline-flex self-start gap-1 rounded-full bg-newsprint p-1">
-      {TABS.map(({ to, label, icon: Icon, end }) => (
+    // Control segmentado con esquinas del sistema: la navegación principal ya
+    // es subrayada, así que una sub-navegación subrayada debajo confundiría los
+    // dos niveles. Un control con marco se lee como otra cosa.
+    <nav className="inline-flex self-start overflow-hidden rounded-md border border-neutral-300">
+      {TABS.map(({ to, label, icon: Icon, end }, i) => (
         <NavLink
           key={to}
           to={to}
           end={end}
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-2 rounded-full px-4 py-1.5 text-[13px] transition-colors",
-              isActive ? "bg-ink text-paper" : "text-ink hover:bg-paper"
+              "flex items-center gap-2 px-4 py-1.5 text-[13px] transition-colors",
+              i > 0 && "border-l border-neutral-300",
+              isActive
+                ? "bg-ink font-semibold text-paper"
+                : "bg-white text-neutral-600 hover:bg-neutral-100 hover:text-ink"
             )
           }
         >

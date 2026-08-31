@@ -294,7 +294,7 @@ export default function Entrada() {
   if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
   if (!creando && !compra) {
     return (
-      <div className="rounded-[22px] bg-newsprint p-10 text-center">
+      <div className="registro p-10 text-center">
         <div className="text-base font-semibold">Esa entrada no existe</div>
         <Link to="/entradas" className="mt-4 inline-block text-[13px] underline underline-offset-2">
           Volver a entradas
@@ -303,15 +303,19 @@ export default function Entrada() {
     )
   }
 
-  const campo = "h-8 rounded-full bg-newsprint px-3 text-sm outline-none"
-  const tile = "block rounded-2xl bg-paper px-4 py-2.5"
-  const rotulo = "text-[10px] tracking-[0.1em] text-ink/50 uppercase"
+  // Campos rectangulares: en una hoja de costeo tienen que alinear en columna,
+  // y las píldoras rompían el ritmo vertical de la tabla.
+  const campo =
+    "h-8 rounded-md border border-neutral-300 bg-white px-2.5 text-sm outline-none focus-visible:border-ink"
+  const hoja = "registro"
+  const tile = "casilla block"
+  const rotulo = "rotulo"
   // One grid per line shape, shared by header and rows so columns line up.
   const GRID = {
     // Dos pares que se leen en paralelo: costo u. -> importe (lo capturado) y
     // costo final u. -> importe final (ya con los gastos encima).
     product:
-      "grid-cols-[minmax(0,1.25fr)_104px_68px_68px_56px_82px_minmax(0,0.7fr)_82px_minmax(0,0.85fr)_34px]",
+      "grid-cols-[minmax(0,1.2fr)_98px_66px_66px_70px_78px_minmax(0,0.68fr)_78px_minmax(0,0.8fr)_30px]",
     charge: "grid-cols-[minmax(0,2fr)_74px_88px_minmax(0,0.8fr)_34px]",
   }
   const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
@@ -324,13 +328,13 @@ export default function Entrada() {
       </Link>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-2xl bg-newsprint px-4 py-3 text-[13px]">
+        <div className="registro flex items-center gap-2.5 px-4 py-3 text-[13px]">
           <CircleAlert className="size-[19px] shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <section className="rounded-[22px] bg-newsprint p-6">
+      <section className="panel">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
             <div className={rotulo}>{creando ? "Compra" : "Costeo de entrada"}</div>
@@ -341,8 +345,10 @@ export default function Entrada() {
               {!creando && (
                 <span
                   className={cn(
-                    "rounded-full px-3 py-1 text-xs",
-                    cerrada ? "bg-neutral-200 text-neutral-700" : "bg-ink text-paper"
+                    "rounded-md px-2.5 py-1 text-xs",
+                    cerrada
+                      ? "border border-neutral-300 bg-white text-neutral-600"
+                      : "bg-ink text-paper"
                   )}
                 >
                   {cerrada ? "Recibida" : "Pendiente"}
@@ -359,7 +365,7 @@ export default function Entrada() {
               <button
                 onClick={guardar}
                 disabled={!puede}
-                className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm text-paper disabled:opacity-40"
+                className="boton boton-ink"
               >
                 <Check className="size-4" />
                 {ocupado ? "Guardando…" : creando ? "Crear entrada" : "Guardar cambios"}
@@ -370,7 +376,7 @@ export default function Entrada() {
                 onClick={descargarPdf}
                 disabled={ocupado || lineas.length === 0}
                 title="Liquidación con el prorrateo de gastos — documento interno"
-                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm disabled:opacity-40"
+                className="boton boton-claro"
               >
                 <Download className="size-4" />
                 Descargar PDF
@@ -380,7 +386,7 @@ export default function Entrada() {
               <button
                 onClick={cerrar}
                 disabled={ocupado || lineas.length === 0}
-                className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-sm disabled:opacity-40"
+                className="boton boton-claro"
                 title="Sube la existencia y congela la entrada"
               >
                 <Lock className="size-4" />
@@ -424,7 +430,7 @@ export default function Entrada() {
       </section>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(290px,0.5fr)]">
-        <section className="rounded-[22px] bg-newsprint p-6">
+        <section className={cn("p-5", hoja)}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Mercancía y gastos</h4>
             <span className="text-[13px] text-neutral-700">
@@ -442,19 +448,19 @@ export default function Entrada() {
                     }
                   }}
                   placeholder="Buscar SKU"
-                  className="h-9 w-[210px] rounded-full bg-paper px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                  className="entrada-texto w-[210px]"
                 />
                 <button
                   onClick={() => setNuevoSku(true)}
                   title="Crear un SKU sin salir de la entrada"
-                  className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-[13px]"
+                  className="boton boton-claro text-[13px]"
                 >
                   <PackagePlus className="size-4" />
                   Nuevo SKU
                 </button>
                 <button
                   onClick={() => setLineas((ls) => ls.concat([lineaCargo()]))}
-                  className="flex items-center gap-2 rounded-full bg-paper px-4 py-2 text-[13px]"
+                  className="boton boton-claro text-[13px]"
                 >
                   <Plus className="size-4" />
                   Gasto
@@ -466,7 +472,7 @@ export default function Entrada() {
           {editable && busca.trim() && sugerencias.length === 0 && (
             <button
               onClick={() => setNuevoSku(true)}
-              className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-paper p-3 text-left text-[13px] hover:shadow-sm"
+              className="mb-3 flex w-full items-center gap-2 rounded-md border border-neutral-300 bg-white p-3 text-left text-[13px] transition-colors hover:bg-neutral-100"
             >
               <PackagePlus className="size-4 shrink-0" />
               <span>
@@ -476,7 +482,7 @@ export default function Entrada() {
           )}
 
           {sugerencias.length > 0 && (
-            <div className="mb-3 rounded-2xl bg-paper/60 p-2">
+            <div className="mb-3 rounded-md border border-neutral-300 bg-paper p-2">
               <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
                 <CornerDownLeft className="size-3.5" />
                 Haz clic en un SKU para agregarlo — o pulsa Enter para el primero
@@ -486,7 +492,7 @@ export default function Entrada() {
                   <button
                     key={p.id}
                     onClick={() => agregarProd(p)}
-                    className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 rounded-xl bg-paper p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1 focus-visible:ring-2 focus-visible:outline-none"
+                    className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 rounded-md border border-neutral-300 bg-white p-2.5 text-left transition-colors hover:bg-neutral-100 focus-visible:border-ink focus-visible:outline-none"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm">{p.description || p.sku}</div>
@@ -498,7 +504,7 @@ export default function Entrada() {
                     <div className="text-sm tabular-nums">
                       {p.cost_price == null ? "sin costo" : usd(p.cost_price)}
                     </div>
-                    <span className="flex items-center gap-1.5 rounded-full bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
+                    <span className="flex items-center gap-1.5 rounded-md bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
                       <PlusCircle className="size-4" />
                       Agregar
                       {i === 0 && (
@@ -516,7 +522,7 @@ export default function Entrada() {
           {/* Cantidad and Bultos sit side by side, and only products offer the
               switch — a charge has no packaging to convert through. */}
           {productosL.length > 0 && (
-            <div className={cn("grid items-end gap-2 px-3 pb-2", GRID.product, rotulo)}>
+            <div className={cn("grid items-end gap-2 border-b border-neutral-300 px-1 pb-2", GRID.product, rotulo)}>
               <div>Producto</div>
               <div>Capturar por</div>
               <div className="text-right">
@@ -540,13 +546,13 @@ export default function Entrada() {
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div>
             {lineas
               .filter((l) => l.type === "product")
               .map((l) => (
                 <div
                   key={l.id}
-                  className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID.product)}
+                  className={cn("registro-fila grid items-center gap-2 px-1 py-2.5", GRID.product)}
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm">{l.nombre}</div>
@@ -555,15 +561,16 @@ export default function Entrada() {
                     </div>
                   </div>
 
-                  <div className="inline-flex gap-0.5 rounded-full bg-newsprint p-0.5">
+                  <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
                     {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
                       <button
                         key={m}
                         onClick={() => editable && set(l.id, { modo: m })}
                         disabled={!editable}
                         className={cn(
-                          "rounded-full px-2 py-1 text-[11px]",
-                          l.modo === m ? "bg-ink text-paper" : "text-ink"
+                          "px-2 py-1 text-[11px] transition-colors",
+                          m === "bultos" && "border-l border-neutral-300",
+                          l.modo === m ? "bg-ink text-paper" : "bg-white text-neutral-600"
                         )}
                       >
                         {etiqueta}
@@ -625,7 +632,7 @@ export default function Entrada() {
                     <button
                       onClick={() => quitar(l.id)}
                       title="Quitar renglón"
-                      className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                      className="accion justify-self-end"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -637,7 +644,7 @@ export default function Entrada() {
           </div>
 
           {cargosL.length > 0 && (
-            <div className={cn("mt-3 grid items-end gap-2 px-3 pb-2", GRID.charge, rotulo)}>
+            <div className={cn("mt-4 grid items-end gap-2 border-b border-neutral-300 px-1 pb-2", GRID.charge, rotulo)}>
               <div>Gasto</div>
               <div className="text-right">
                 Cantidad<span className="block text-[9px] tracking-normal normal-case">sin bultos</span>
@@ -648,13 +655,13 @@ export default function Entrada() {
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div>
             {lineas
               .filter((l) => l.type === "charge")
               .map((l) => (
                 <div
                   key={l.id}
-                  className={cn("grid items-center gap-2 rounded-[14px] bg-paper p-3", GRID.charge)}
+                  className={cn("registro-fila grid items-center gap-2 px-1 py-2.5", GRID.charge)}
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <Truck className="size-4 shrink-0 text-neutral-700" />
@@ -688,7 +695,7 @@ export default function Entrada() {
                     <button
                       onClick={() => quitar(l.id)}
                       title="Quitar gasto"
-                      className="grid size-[30px] place-items-center justify-self-end rounded-full bg-newsprint"
+                      className="accion justify-self-end"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -713,7 +720,7 @@ export default function Entrada() {
           </datalist>
 
           {lineas.length === 0 && (
-            <div className="rounded-2xl bg-paper p-10 text-center">
+            <div className="rounded-md border border-neutral-300 bg-paper p-10 text-center">
               <Package className="mx-auto size-7 text-neutral-700" />
               <div className="mt-2 text-base font-semibold">Agrega los SKU que llegaron</div>
               <div className="text-[13px] text-neutral-700">
@@ -723,7 +730,7 @@ export default function Entrada() {
           )}
         </section>
 
-        <aside className="sticky top-4 flex flex-col gap-2.5 rounded-[22px] bg-newsprint p-6 text-sm">
+        <aside className={cn("sticky top-4 flex flex-col gap-2.5 p-5 text-sm", hoja)}>
           <h4 className="m-0 mb-1 font-semibold">Costeo</h4>
           {[
             ["Unidades", n0(unidades)],
@@ -737,7 +744,7 @@ export default function Entrada() {
               <span className="tabular-nums">{v}</span>
             </div>
           ))}
-          <div className="mt-1 flex items-baseline justify-between rounded-[14px] bg-paper px-3 py-2.5">
+          <div className="mt-1 flex items-baseline justify-between rounded-md border border-neutral-300 bg-paper px-3 py-2.5">
             <span className="text-[15px] font-semibold">Costo en almacén</span>
             <span className="text-[25px] font-semibold tracking-[-0.02em] tabular-nums">
               {usd(total)}
@@ -749,13 +756,13 @@ export default function Entrada() {
             base de datos guarda mercancía y gastos por separado y no se sobrescribe ningún costo.
           </p>
           {!prorrateable && !gastos.eq(0) && (
-            <div className="rounded-[14px] bg-paper p-3 text-xs">
+            <div className="rounded-md border border-neutral-300 bg-paper p-3 text-xs">
               Hay gastos pero la mercancía suma $0.00, así que no hay sobre qué repartirlos.
               Captura el costo de los SKU y el prorrateo aparece solo.
             </div>
           )}
           {incompletas.length > 0 && editable && (
-            <div className="rounded-[14px] bg-paper p-3 text-xs">
+            <div className="rounded-md border border-neutral-300 bg-paper p-3 text-xs">
               Faltan datos en {incompletas.length} renglón{incompletas.length > 1 ? "es" : ""}.
             </div>
           )}
