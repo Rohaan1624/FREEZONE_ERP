@@ -14,7 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
-import { usd, n0, fecha, margenTexto, markupTexto } from "@/lib/format"
+import { usd, n0, fecha, markupTexto } from "@/lib/format"
 import { mul } from "@/lib/dinero"
 
 const FUENTE = {
@@ -160,7 +160,6 @@ export default function Producto() {
               {prod.sale_price == null ? "—" : usd(prod.sale_price)}
             </div>
             <div className="text-[11px] text-neutral-700 tabular-nums">
-              {margenTexto(prod.cost_price, prod.sale_price)} ·{" "}
               {markupTexto(prod.cost_price, prod.sale_price)} sobre costo
             </div>
           </div>

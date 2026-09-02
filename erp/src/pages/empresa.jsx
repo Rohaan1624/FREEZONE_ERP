@@ -1,6 +1,6 @@
 import * as React from "react"
-import { useOutletContext } from "react-router-dom"
-import { Check, CircleAlert } from "lucide-react"
+import { Link, useOutletContext } from "react-router-dom"
+import { Check, CircleAlert, Upload } from "lucide-react"
 
 import { supabase } from "@/lib/supabase"
 
@@ -149,6 +149,21 @@ export default function Empresa() {
             <span>{error}</span>
           </div>
         )}
+      </section>
+
+      <section className="registro p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <h4 className="m-0 font-semibold">Importar del sistema anterior</h4>
+            <div className="text-[13px] text-neutral-700">
+              Catálogo, clientes y facturas por cobrar, desde archivos CSV.
+            </div>
+          </div>
+          <Link to="/importar" className="boton boton-claro ml-auto">
+            <Upload className="size-4" />
+            Abrir importación
+          </Link>
+        </div>
       </section>
 
       <section className="registro p-6">

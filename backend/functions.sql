@@ -65,6 +65,13 @@ drop function if exists public.update_invoice(uuid, jsonb, text, uuid, text);
 drop function if exists public.create_invoice(uuid, text, jsonb, text, text, date);
 drop function if exists public.update_invoice(uuid, jsonb, text, uuid, text, date);
 
+-- p_date: la migración desde el sistema anterior necesita crear la factura y el
+-- pago CON SU FECHA REAL, no con la de hoy. Sin esto una factura de mayo entra
+-- fechada el día del cambio y el reporte de antigüedad la ve al corriente —
+-- justo el número con el que se decide a quién cobrar.
+drop function if exists public.create_invoice(uuid, text, jsonb, text, text, date, jsonb);
+drop function if exists public.create_payment(uuid, numeric, text, uuid, text);
+
 -- invoice.total and purchase.total used to be maintained by FOR EACH ROW
 -- triggers. They are plain functions now, called directly by the RPCs that
 -- write the lines. Drop the old machinery so re-applying this file is clean.
@@ -207,7 +214,11 @@ create or replace function public.create_invoice(
   --   {"purchase_order":"00-154","salesperson":"…","consigned_to":"…",
   --    "marks":"…","dispatched":"…","shipped_via":"…"}
   -- Una clave ausente se guarda como NULL y se imprime en blanco.
-  p_doc         jsonb default '{}'::jsonb
+  p_doc         jsonb default '{}'::jsonb,
+  -- Fecha de emisión. NULL = hoy, que es lo normal. Solo se pasa al importar
+  -- del sistema anterior, donde la fecha real de la factura es lo que hace que
+  -- la antigüedad del saldo signifique algo.
+  p_date        date  default null
 )
 returns uuid
 language plpgsql
@@ -231,6 +242,13 @@ begin
   end if;
   if jsonb_typeof(p_lines) <> 'array' then
     raise exception 'p_lines must be a JSON array' using errcode = '22023';
+  end if;
+  -- Antedatar es el propósito de p_date; adelantar no. Una factura con fecha
+  -- futura casi siempre es un dedazo en el CSV (2062 por 2026) y quedaría fuera
+  -- de todo reporte de periodo sin que nadie lo note.
+  if p_date is not null and p_date > current_date then
+    raise exception 'la fecha de la factura no puede ser futura: %', p_date
+      using errcode = '22023';
   end if;
 
   -- Allocate the invoice number if the caller did not supply one.
@@ -263,15 +281,21 @@ begin
   -- Due date: use what the caller passed, else fall back to the client's
   -- default credit days. Stored on the invoice so later changes to the
   -- client's terms never move an already-issued invoice's due date.
-  select coalesce(p_due_date, current_date + c.payment_terms)
+  --
+  -- Los días se cuentan desde la FECHA DE EMISIÓN, no desde hoy. Importar una
+  -- factura de mayo a Neto 30 sin vencimiento en el CSV tiene que dar junio, no
+  -- treinta días a partir del día del cambio — si no, entra al sistema ya
+  -- clasificada como vigente cuando lleva meses vencida.
+  select coalesce(p_due_date, coalesce(p_date, current_date) + c.payment_terms)
     into v_due
     from public.client c
    where c.id = p_client_id and c.user_id = v_uid;
 
   insert into public.invoice
-    (invoice_num, client_id, client_name, user_id, status, notes, due_date,
+    (invoice_num, client_id, client_name, user_id, status, notes, due_date, date_created,
      purchase_order, salesperson, consigned_to, marks, dispatched, shipped_via)
   select v_num, c.id, c.name, v_uid, p_status, p_notes, v_due,
+         coalesce(p_date::timestamptz, now()),
          nullif(p_doc ->> 'purchase_order', ''),
          nullif(p_doc ->> 'salesperson', ''),
          nullif(p_doc ->> 'consigned_to', ''),
@@ -816,7 +840,10 @@ create or replace function public.create_payment(
   p_amount         numeric,
   p_payment_method text default 'bank_transfer',
   p_invoice_id     uuid default null,
-  p_notes          text default null
+  p_notes          text default null,
+  -- Igual que en create_invoice: NULL = hoy. Solo se pasa al importar, para
+  -- que un abono parcial hecho en junio no aparezca cobrado el día del cambio.
+  p_date           date default null
 )
 returns uuid
 language plpgsql
@@ -833,6 +860,10 @@ begin
   if p_amount is null or p_amount <= 0 then
     raise exception 'payment amount must be positive' using errcode = '22023';
   end if;
+  if p_date is not null and p_date > current_date then
+    raise exception 'la fecha del pago no puede ser futura: %', p_date
+      using errcode = '22023';
+  end if;
   if not exists (select 1 from public.client
                   where id = p_client_id and user_id = v_uid) then
     raise exception 'client % not found', p_client_id using errcode = '42501';
@@ -846,9 +877,10 @@ begin
   end if;
 
   insert into public.payments
-    (amount, payment_method, client_id, invoice_id, notes, user_id)
+    (amount, payment_method, client_id, invoice_id, notes, user_id, date_created)
   values
-    (p_amount, p_payment_method, p_client_id, p_invoice_id, p_notes, v_uid)
+    (p_amount, p_payment_method, p_client_id, p_invoice_id, p_notes, v_uid,
+     coalesce(p_date::timestamptz, now()))
   returning id into v_id;
 
   perform public.recalc_client_balance(p_client_id);
@@ -1339,6 +1371,309 @@ comment on view public.stock_movement is
 grant select on public.stock_movement to authenticated;
 
 
+-- =============================================================================
+-- resumen_dashboard — el tablero completo en UN viaje y sumado en el servidor
+-- =============================================================================
+-- Antes el navegador se traía TODOS los renglones de transaction para sumar
+-- ingresos y margen. Con mil facturas de ocho renglones son ocho mil filas, y
+-- PostgREST corta en mil sin devolver error: el tablero salía calculado sobre
+-- una octava parte de los datos, con cifras plausibles y falsas. Aquí la suma
+-- la hace Postgres y viajan doce cubetas en vez de ocho mil filas.
+--
+-- SECURITY INVOKER a propósito, al revés que los RPC de escritura: es solo
+-- lectura, así que las políticas RLS ya lo acotan al dueño y no hay que
+-- repetir el filtro user_id a mano. Menos cosas que se puedan escribir mal.
+--
+-- La VENTANA la manda el cliente, no se calcula con current_date. El navegador
+-- ya sabe en qué mes está según el reloj de quien mira; calcularla aquí (en UTC)
+-- movería el corte un día en los bordes de mes y nadie entendería por qué.
+--
+-- El dinero sale como TEXTO. En JSON un numeric se volvería double y 12480.50
+-- puede volver como 12480.499999999998; el frontend lo envuelve en Big y suma
+-- exacto. Los conteos y los índices sí son números.
+create or replace function public.resumen_dashboard(
+  p_desde       date,
+  p_hasta       date,   -- exclusivo
+  p_desde_prev  date,
+  p_hasta_prev  date,   -- exclusivo
+  p_periodo     text    -- 'anio' | 'mes' | 'semana'
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = public
+as $$
+declare
+  v_res jsonb;
+begin
+  if p_periodo not in ('anio', 'mes', 'semana') then
+    raise exception 'periodo inválido: %', p_periodo using errcode = '22023';
+  end if;
+
+  with
+  -- Facturas emitidas de los dos periodos. Un borrador no se ha facturado.
+  emitidas as (
+    select i.id, i.total, i.due_date, i.date_created::date as f,
+           i.date_created::date >= p_desde and i.date_created::date < p_hasta as es_actual
+      from public.invoice i
+     where i.status in ('active','closed')
+       and ((i.date_created::date >= p_desde      and i.date_created::date < p_hasta)
+         or (i.date_created::date >= p_desde_prev and i.date_created::date < p_hasta_prev))
+  ),
+  -- El índice de cubeta es EL MISMO cálculo que hace cubo() en resumen.js:
+  -- por mes, por semana del mes, o por día corrido desde el inicio.
+  cubos as (
+    select es_actual,
+           case p_periodo
+             when 'anio'   then extract(month from f)::int - 1
+             when 'mes'    then floor((extract(day from f)::int - 1) / 7)::int
+             else (f - case when es_actual then p_desde else p_desde_prev end)
+           end as i,
+           total
+      from emitidas
+  ),
+  barras as (
+    select i,
+           sum(total) filter (where es_actual)     as actual,
+           sum(total) filter (where not es_actual) as previo
+      from cubos
+     where i >= 0
+     group by i
+  ),
+  -- Antigüedad: sobre TODAS las emitidas con saldo, no solo las del periodo —
+  -- lo que se debe se debe aunque la factura sea de hace ocho meses.
+  saldos as (
+    select i.due_date,
+           i.total - coalesce((select sum(p.amount) from public.payments p
+                                where p.invoice_id = i.id), 0) as saldo
+      from public.invoice i
+     where i.status in ('active','closed')
+  ),
+  edades as (
+    select case
+             when due_date is null or due_date >= current_date then 0
+             when current_date - due_date <= 30 then 1
+             when current_date - due_date <= 60 then 2
+             else 3
+           end as i,
+           sum(saldo) as v
+      from saldos
+     where saldo > 0
+     group by 1
+  ),
+  -- Margen y top SKU salen de los mismos renglones: producto, factura emitida
+  -- y dentro del periodo actual.
+  renglones as (
+    select t.qty, t.unit_price, t.product_id,
+           pr.sku, pr.description, pr.cost_price
+      from public.transaction t
+      join public.invoice i  on i.id = t.invoice_id
+      join public.product pr on pr.id = t.product_id
+     where t.type = 'product'
+       and i.status in ('active','closed')
+       and i.date_created::date >= p_desde
+       and i.date_created::date <  p_hasta
+  ),
+  -- Un renglón cuyo producto no tiene costo se EXCLUYE de los dos lados y se
+  -- cuenta aparte. Contarlo con costo 0 empujaría el margen hacia 100%.
+  margen as (
+    select coalesce(sum(qty * unit_price) filter (where cost_price is not null), 0) as ingreso,
+           coalesce(sum(qty * cost_price) filter (where cost_price is not null), 0) as costo,
+           count(*) filter (where cost_price is null)                               as sin_costo
+      from renglones
+  ),
+  top as (
+    select sku, coalesce(description, sku) as nombre,
+           sum(qty)::int as unidades, sum(qty * unit_price) as importe
+      from renglones
+     group by sku, description
+     order by importe desc
+     limit 5
+  ),
+  pagos as (
+    select coalesce(sum(amount), 0) as v
+      from public.payments
+     where date_created::date >= p_desde and date_created::date < p_hasta
+  ),
+  inventario as (
+    select coalesce(sum(stock * cost_price) filter (where cost_price is not null), 0) as valor,
+           count(*) filter (where cost_price is null) as sin_costo,
+           count(*)                                   as skus
+      from public.product
+  ),
+  cuenta as (
+    select count(*) as n from emitidas where es_actual
+  )
+  select jsonb_build_object(
+    'barras', coalesce((select jsonb_agg(jsonb_build_object(
+                  'i', i, 'actual', coalesce(actual,0)::text, 'previo', coalesce(previo,0)::text)
+                order by i) from barras), '[]'::jsonb),
+    'antiguedad', coalesce((select jsonb_agg(jsonb_build_object('i', i, 'v', v::text) order by i)
+                from edades), '[]'::jsonb),
+    'margen', (select jsonb_build_object('ingreso', ingreso::text, 'costo', costo::text,
+                'sin_costo', sin_costo) from margen),
+    'top', coalesce((select jsonb_agg(jsonb_build_object('sku', sku, 'nombre', nombre,
+                'unidades', unidades, 'importe', importe::text) order by importe desc)
+                from top), '[]'::jsonb),
+    'cobrado', (select v::text from pagos),
+    'inventario', (select jsonb_build_object('valor', valor::text, 'sin_costo', sin_costo,
+                'skus', skus) from inventario),
+    'num_facturas', (select n from cuenta)
+  ) into v_res;
+
+  return v_res;
+end;
+$$;
+
+revoke execute on function public.resumen_dashboard(date, date, date, date, text) from public, anon;
+grant  execute on function public.resumen_dashboard(date, date, date, date, text) to authenticated;
+
+
+-- =============================================================================
+-- invoice_listado — la vista que pagina el libro de facturas
+-- =============================================================================
+-- El estado que se ve en la lista (Borrador, Pendiente, Parcial, Vencida,
+-- Pagada) NO es una columna: se deriva del status, de lo abonado y de la fecha
+-- de vencimiento. Mientras la pantalla se traía todo, esa derivación vivía en
+-- estadoFactura() del navegador.
+--
+-- Con paginación eso deja de funcionar: filtrar «Vencida» sobre la página
+-- cargada solo encuentra las vencidas que ya se estaban viendo. La derivación
+-- tiene que estar donde está el WHERE, así que baja a una vista y PostgREST le
+-- da filtro, orden, range y count sin escribir un RPC.
+--
+-- security_invoker = true, POR LO MISMO QUE stock_movement: sin él la vista
+-- correría como su dueño (postgres, exento de RLS) y enseñaría las facturas de
+-- todos a todos.
+--
+-- El orden de los casos importa y es el mismo que en estadoFactura():
+-- una factura vencida pero ya pagada es Pagada, no Vencida.
+create or replace view public.invoice_listado
+with (security_invoker = true)
+as
+select i.id,
+       i.user_id,
+       i.invoice_num,
+       i.client_id,
+       i.client_name,
+       i.status,
+       i.total,
+       i.date_created,
+       i.due_date,
+       v.pagado,
+       -- El saldo se recorta a 0: un sobrepago no es una deuda negativa.
+       greatest(i.total - v.pagado, 0) as saldo,
+       case
+         when i.status = 'draft'                     then 'Borrador'
+         when greatest(i.total - v.pagado, 0) = 0    then 'Pagada'
+         when i.due_date is not null
+          and i.due_date < current_date              then 'Vencida'
+         when v.pagado > 0                           then 'Parcial'
+         else                                             'Pendiente'
+       end as estado,
+       -- Días de atraso, para poder ordenar por antigüedad sin recalcular.
+       case when i.due_date is not null and i.due_date < current_date
+            then current_date - i.due_date else 0 end as dias_vencida
+  from public.invoice i
+  cross join lateral (
+    select coalesce((select sum(p.amount) from public.payments p
+                      where p.invoice_id = i.id), 0) as pagado
+  ) v;
+
+comment on view public.invoice_listado is
+  'Facturas con su saldo y su estado ya derivados, para poder filtrar y paginar por estado desde el servidor. Refleja la misma lógica que estadoFactura() en el frontend.';
+
+grant select on public.invoice_listado to authenticated;
+
+
+-- Índices para que el orden y la búsqueda no hagan sort de toda la tabla ------
+-- La lista ordena por fecha descendente; sin este índice Postgres lee todo y
+-- ordena después. purchase ya tenía el suyo desde el principio.
+create index if not exists invoice_user_fecha_idx
+  on public.invoice (user_id, date_created desc);
+create index if not exists client_user_nombre_idx
+  on public.client (user_id, name);
+
+
+-- =============================================================================
+-- TOTALES DE CABECERA — los agregados que NO pueden salir de la página cargada
+-- =============================================================================
+-- «4 cuentas · por cobrar $27,911.15» se calculaba sumando el arreglo que la
+-- pantalla ya tenía en memoria. Eso funciona mientras quepa todo, y deja de
+-- funcionar de la peor forma: con paginación sumaría solo la página visible, y
+-- con más de mil filas PostgREST recorta la respuesta sin devolver error. En los
+-- dos casos la cifra sale más chica de lo real y nada lo indica.
+--
+-- Son de solo lectura y SECURITY INVOKER: las políticas RLS ya los acotan al
+-- dueño, así que no hay filtro user_id que se pueda escribir mal.
+--
+-- El dinero sale como texto por lo mismo que en resumen_dashboard: un numeric
+-- convertido a double puede volver como 12480.499999999998.
+
+
+-- totales_facturas: ahora también cuenta por estado --------------------------
+-- Las pestañas mostraban «Vencida 1» contando sobre las filas cargadas. Con
+-- paginación ese número sería el de la página, no el del libro.
+create or replace function public.totales_facturas()
+returns jsonb language sql stable security invoker set search_path = public as $$
+  select jsonb_build_object(
+    'documentos', count(*),
+    'saldo_pendiente', coalesce(sum(saldo) filter (where status <> 'draft'), 0)::text,
+    'por_estado', jsonb_build_object(
+      'Borrador',  count(*) filter (where estado = 'Borrador'),
+      'Pendiente', count(*) filter (where estado = 'Pendiente'),
+      'Parcial',   count(*) filter (where estado = 'Parcial'),
+      'Vencida',   count(*) filter (where estado = 'Vencida'),
+      'Pagada',    count(*) filter (where estado = 'Pagada')
+    )
+  ) from public.invoice_listado;
+$$;
+
+-- Clientes: cuentas y cartera ------------------------------------------------
+-- balance ya está calculado y mantenido por recalc_client_balance; aquí solo
+-- se suma, que es exactamente lo que hacía el navegador.
+create or replace function public.totales_clientes()
+returns jsonb language sql stable security invoker set search_path = public as $$
+  select jsonb_build_object(
+    'cuentas', count(*),
+    'por_cobrar', coalesce(sum(balance), 0)::text
+  ) from public.client;
+$$;
+
+-- Productos: catálogo valuado a costo ----------------------------------------
+-- Un SKU sin costo NO se valúa en 0: se cuenta aparte. Valuarlo en cero
+-- subestima el inventario en silencio, que es el mismo error que hacía que un
+-- producto sin costo reportara 100% de margen.
+create or replace function public.totales_productos()
+returns jsonb language sql stable security invoker set search_path = public as $$
+  select jsonb_build_object(
+    'skus', count(*),
+    'valor_inventario', coalesce(sum(stock * cost_price) filter (where cost_price is not null), 0)::text,
+    'sin_costo', count(*) filter (where cost_price is null)
+  ) from public.product;
+$$;
+
+-- Entradas: cuántas y cuántas siguen sin recibirse ---------------------------
+create or replace function public.totales_entradas()
+returns jsonb language sql stable security invoker set search_path = public as $$
+  select jsonb_build_object(
+    'entradas', count(*),
+    'pendientes', count(*) filter (where status = 'active'),
+    'costo_recibido', coalesce(sum(total) filter (where status = 'closed'), 0)::text
+  ) from public.purchase;
+$$;
+
+revoke execute on function public.totales_facturas()  from public, anon;
+revoke execute on function public.totales_clientes()  from public, anon;
+revoke execute on function public.totales_productos() from public, anon;
+revoke execute on function public.totales_entradas()  from public, anon;
+grant  execute on function public.totales_facturas()  to authenticated;
+grant  execute on function public.totales_clientes()  to authenticated;
+grant  execute on function public.totales_productos() to authenticated;
+grant  execute on function public.totales_entradas()  to authenticated;
+
+
 -- -----------------------------------------------------------------------------
 -- Grants
 -- -----------------------------------------------------------------------------
@@ -1349,8 +1684,8 @@ grant select on public.stock_movement to authenticated;
 revoke execute on function public.invoice_footprint(uuid)                from public, anon, authenticated;
 revoke execute on function public.apply_stock_delta(uuid, jsonb, jsonb)  from public, anon, authenticated;
 
-revoke execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb) from public, anon;
-grant  execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb) to authenticated;
+revoke execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb, date) from public, anon;
+grant  execute on function public.create_invoice(uuid, text, jsonb, text, text, date, jsonb, date) to authenticated;
 
 revoke execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date, jsonb) from public, anon;
 grant  execute on function public.update_invoice(uuid, jsonb, text, uuid, text, date, jsonb) to authenticated;
@@ -1364,8 +1699,8 @@ grant  execute on function public.delete_invoice(uuid) to authenticated;
 revoke execute on function public.reopen_invoice(uuid) from public, anon;
 grant  execute on function public.reopen_invoice(uuid) to authenticated;
 
-revoke execute on function public.create_payment(uuid, numeric, text, uuid, text) from public, anon;
-grant  execute on function public.create_payment(uuid, numeric, text, uuid, text) to authenticated;
+revoke execute on function public.create_payment(uuid, numeric, text, uuid, text, date) from public, anon;
+grant  execute on function public.create_payment(uuid, numeric, text, uuid, text, date) to authenticated;
 
 revoke execute on function public.update_payment(uuid, numeric, text, uuid, text) from public, anon;
 grant  execute on function public.update_payment(uuid, numeric, text, uuid, text) to authenticated;

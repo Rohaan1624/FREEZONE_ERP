@@ -124,7 +124,7 @@ export default function Factura() {
             <div className="mt-0.5 flex items-center gap-3">
               <h2 className="m-0 text-[25px] font-semibold">{inv.invoice_num}</h2>
               <span
-                className={cn("text-[13px]", TONO_TEXTO[est.tono])}
+                className={cn("text-[13px]", TONO_TEXTO[est.etiqueta])}
               >
                 {est.etiqueta}
               </span>

@@ -43,6 +43,18 @@ function cubo(periodo, fecha, desde) {
 
 const NUM_CUBOS = { anio: 12, mes: 5, semana: 7 }
 
+/** Las etiquetas de las barras de un periodo: meses, semanas o días. */
+export function etiquetasDe(periodo, desde) {
+  const n = NUM_CUBOS[periodo]
+  return Array.from({ length: n }, (_, i) => {
+    if (periodo === "anio") return MESES[i]
+    if (periodo === "mes") return `S ${i + 1}`
+    const d = new Date(desde)
+    d.setDate(desde.getDate() + i)
+    return DIAS[d.getDay()]
+  })
+}
+
 /**
  * Revenue bars: this period against the same window one year earlier.
  * Only issued invoices count — a draft has not been billed.
@@ -53,13 +65,7 @@ export function barrasIngresos(facturas, periodo, hoy = new Date()) {
   const hastaPrev = desplaza(hasta, -1)
   const n = NUM_CUBOS[periodo]
 
-  const etiquetas = Array.from({ length: n }, (_, i) => {
-    if (periodo === "anio") return MESES[i]
-    if (periodo === "mes") return `S ${i + 1}`
-    const d = new Date(desde)
-    d.setDate(desde.getDate() + i)
-    return DIAS[d.getDay()]
-  })
+  const etiquetas = etiquetasDe(periodo, desde)
 
   // Accumulate in exact decimal; convert to plain numbers only at the end,
   // where they are used for bar HEIGHTS. Money that is displayed stays Big.
@@ -103,13 +109,10 @@ export function variacion(actual, previo) {
  * Receivables by age. Drafts are excluded — nothing is owed until issued.
  * Buckets are ordered oldest-worst last so the ramp reads light -> dark.
  */
+const ETIQUETAS_EDAD = ["Por vencer", "1 – 30 días", "31 – 60 días", "+ 60 días"]
+
 export function antiguedad(facturas) {
-  const cubos = [
-    { k: "Por vencer", v: M(0) },
-    { k: "1 – 30 días", v: M(0) },
-    { k: "31 – 60 días", v: M(0) },
-    { k: "+ 60 días", v: M(0) },
-  ]
+  const cubos = ETIQUETAS_EDAD.map((k) => ({ k, v: M(0) }))
   for (const f of facturas) {
     if (f.status === "draft") continue
     const pagado = sumar(f.payments ?? [], (p) => p.amount)
@@ -218,4 +221,99 @@ export function valorInventario(productos) {
     valor = add(valor, mul(p.stock, c))
   }
   return { valor: centavos(valor), sinCosto, skus: productos.length }
+}
+
+
+/* ========================================================================== *
+ * ADAPTADOR DEL RPC
+ * ========================================================================== *
+ * Las funciones de arriba siguen exportadas y probadas a propósito: son la
+ * IMPLEMENTACIÓN DE REFERENCIA contra la que se verifica resumen_dashboard.
+ * Si algún día el SQL y el JS dejan de coincidir, la prueba de paridad lo dice.
+ *
+ * Lo que cambia es de dónde salen los números. Antes el navegador se traía
+ * todos los renglones de transaction y sumaba aquí; PostgREST corta en mil
+ * filas sin avisar, así que pasadas mil facturas el tablero salía calculado
+ * sobre una fracción de los datos. Ahora suma Postgres y esto solo acomoda la
+ * respuesta en las mismas formas que ya espera la pantalla.
+ *
+ * El dinero llega como texto y se envuelve en Big sin pasar por Number: un
+ * numeric convertido a double puede devolver 12480.499999999998.
+ */
+
+/** Expande la respuesta dispersa del RPC a las formas que usa el render. */
+export function desdeRpc(res, periodo, hoy = new Date()) {
+  const { desde } = ventana(periodo, hoy)
+  const desdePrev = desplaza(desde, -1)
+  const n = NUM_CUBOS[periodo]
+
+  // El RPC solo manda las cubetas con movimiento; las demás son cero.
+  const actualB = Array.from({ length: n }, () => M(0))
+  const previoB = Array.from({ length: n }, () => M(0))
+  for (const b of res.barras ?? []) {
+    if (b.i >= 0 && b.i < n) {
+      actualB[b.i] = M(b.actual)
+      previoB[b.i] = M(b.previo)
+    }
+  }
+
+  const edadesV = Array.from({ length: 4 }, () => M(0))
+  for (const a of res.antiguedad ?? []) if (a.i >= 0 && a.i < 4) edadesV[a.i] = M(a.v)
+
+  const ingreso = M(res.margen?.ingreso)
+  const costo = M(res.margen?.costo)
+  const pct = div(sub(ingreso, costo), ingreso)
+
+  return {
+    barras: {
+      etiquetas: etiquetasDe(periodo, desde),
+      actual: actualB.map(centavos),
+      previo: previoB.map(centavos),
+      actualNum: actualB.map(aNumeroJS),
+      previoNum: previoB.map(aNumeroJS),
+      totalActual: centavos(sumar(actualB)),
+      totalPrevio: centavos(sumar(previoB)),
+      anioActual: desde.getFullYear(),
+      anioPrevio: desdePrev.getFullYear(),
+    },
+    edades: ETIQUETAS_EDAD.map((k, i) => ({
+      k,
+      v: centavos(edadesV[i]),
+      num: aNumeroJS(edadesV[i]),
+    })),
+    margen: {
+      ingreso: centavos(ingreso),
+      costo: centavos(costo),
+      utilidad: centavos(sub(ingreso, costo)),
+      porcentaje: pct === null ? null : Number(pct.times(100).toString()),
+      sinCosto: res.margen?.sin_costo ?? 0,
+    },
+    top: (res.top ?? []).map((t) => ({
+      sku: t.sku,
+      nombre: t.nombre,
+      unidades: t.unidades,
+      importe: centavos(M(t.importe)),
+    })),
+    pagado: centavos(M(res.cobrado)),
+    inv: {
+      valor: centavos(M(res.inventario?.valor)),
+      sinCosto: res.inventario?.sin_costo ?? 0,
+      skus: res.inventario?.skus ?? 0,
+    },
+    numFacturas: res.num_facturas ?? 0,
+  }
+}
+
+/** Los cuatro parámetros de ventana que espera resumen_dashboard. */
+export function argsRpc(periodo, hoy = new Date()) {
+  const { desde, hasta } = ventana(periodo, hoy)
+  const iso = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  return {
+    p_desde: iso(desde),
+    p_hasta: iso(hasta),
+    p_desde_prev: iso(desplaza(desde, -1)),
+    p_hasta_prev: iso(desplaza(hasta, -1)),
+    p_periodo: periodo,
+  }
 }

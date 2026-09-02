@@ -497,7 +497,7 @@ export default function Cliente() {
                       <span
                         className={cn(
                           "text-[13px]",
-                          TONO_TEXTO[est.tono]
+                          TONO_TEXTO[est.etiqueta]
                         )}
                       >
                         {est.etiqueta}

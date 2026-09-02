@@ -5,10 +5,12 @@ import { Plus, Check, Trash2, X, Pencil, CircleAlert, Search } from "lucide-reac
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { Confirmar } from "@/components/confirmar"
+import { useTotales } from "@/lib/totales"
+import { Paginacion } from "@/components/paginacion"
+import { useDebounce, rango, filtroTexto } from "@/lib/lista"
 import {
   usd,
   n0,
-  margenTexto,
   markupTexto,
   utilidadUnitaria,
   aNumero,
@@ -28,8 +30,7 @@ const VACIO = {
 }
 
 export default function Productos() {
-  const [filas, setFilas] = React.useState([])
-  const [cargando, setCargando] = React.useState(true)
+  const [pagina, setPagina] = React.useState(0)
   const [error, setError] = React.useState("")
   const [busca, setBusca] = React.useState("")
   const [form, setForm] = React.useState(null)
@@ -44,22 +45,33 @@ export default function Productos() {
   const [recarga, setRecarga] = React.useState(0)
   const cargar = React.useCallback(() => setRecarga((n) => n + 1), [])
 
+  const q = useDebounce(busca)
+  const clave = `${pagina}|${q}|${recarga}`
+  const [datos, setDatos] = React.useState(null)
+
   React.useEffect(() => {
     let vivo = true
-    supabase
+    let consulta = supabase
       .from("product")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("sku")
-      .then(({ data, error }) => {
-        if (!vivo) return
-        if (error) setError(error.message)
-        else setFilas(data ?? [])
-        setCargando(false)
-      })
+      .range(...rango(pagina))
+    const f = filtroTexto(q, ["sku", "description"])
+    if (f) consulta = consulta.or(f)
+
+    consulta.then(({ data, error, count }) => {
+      if (!vivo) return
+      if (error) setError(error.message)
+      else setDatos({ clave, filas: data ?? [], total: count ?? 0 })
+    })
     return () => {
       vivo = false
     }
-  }, [recarga])
+  }, [clave, pagina, q, recarga])
+
+  const cargando = datos?.clave !== clave
+  const filas = datos?.filas ?? []
+  const total = datos?.total ?? null
 
   // aNumero keeps "not given" as null instead of collapsing it to 0.
   const num = aNumero
@@ -121,18 +133,8 @@ export default function Productos() {
     cargar()
   }
 
-  const q = busca.trim().toLowerCase()
-  const visibles = filas.filter(
-    (p) => !q || p.sku.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)
-  )
-  // Only SKUs with a known cost can be valued; the rest are counted and
-  // reported separately rather than silently valued at zero.
-  const conCosto = filas.filter((p) => aNumero(p.cost_price) !== null)
-  const sinCosto = filas.length - conCosto.length
-  const valorInventario = conCosto.reduce(
-    (t, p) => t + Number(p.stock ?? 0) * aNumero(p.cost_price),
-    0
-  )
+  // Del servidor. Un SKU sin costo se cuenta aparte, nunca se valúa en 0.
+  const totales = useTotales("totales_productos", recarga)
 
   const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
   const tile = "casilla block"
@@ -146,9 +148,11 @@ export default function Productos() {
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Productos</h3>
           <div className="text-[13px] text-neutral-700">
-            {filas.length} SKU · inventario valuado{" "}
-            <span className="tabular-nums">{usd(valorInventario)}</span>
-            {sinCosto > 0 && ` · ${sinCosto} sin costo`}
+            {totales ? totales.skus : "…"} SKU · inventario valuado{" "}
+            <span className="tabular-nums">
+              {totales ? usd(totales.valor_inventario) : "…"}
+            </span>
+            {totales?.sin_costo > 0 && ` · ${totales.sin_costo} sin costo`}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -156,7 +160,10 @@ export default function Productos() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              onChange={(e) => {
+                setBusca(e.target.value)
+                setPagina(0)
+              }}
               placeholder="Buscar SKU o descripción"
               className="entrada-texto w-[260px] pr-3 pl-9"
             />
@@ -270,10 +277,8 @@ export default function Productos() {
               />
             </label>
             <div className={tile}>
-              <div className={rotulo}>Margen · Markup</div>
+              <div className={rotulo}>Markup</div>
               <div className="mt-0.5 flex items-baseline gap-2 text-base font-semibold tabular-nums">
-                <span>{margenTexto(form.cost_price, form.sale_price)}</span>
-                <span className="text-neutral-700">·</span>
                 <span>{markupTexto(form.cost_price, form.sale_price)}</span>
               </div>
               <div className="text-[11px] text-neutral-700 tabular-nums">
@@ -326,20 +331,20 @@ export default function Productos() {
 
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
-      {!cargando && visibles.length === 0 && (
+      {!cargando && filas.length === 0 && (
         <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
-            {filas.length === 0 ? "Todavía no hay productos" : "Ningún SKU coincide"}
+            {q ? "Ningún SKU coincide" : "Todavía no hay productos"}
           </div>
           <div className="mt-1 text-[13px] text-neutral-700">
-            {filas.length === 0
-              ? "Crea el primero para poder facturar y registrar entradas."
-              : "Prueba con otra búsqueda."}
+            {q
+              ? "Prueba con otra búsqueda."
+              : "Crea el primero para poder facturar y registrar entradas."}
           </div>
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {filas.length > 0 && (
         <div className="registro overflow-hidden">
           <div
             className={cn(
@@ -352,11 +357,11 @@ export default function Productos() {
             <div className="text-right">Existencia</div>
             <div className="text-right">Costo</div>
             <div className="text-right">Precio</div>
-            <div className="text-right">Margen · Markup</div>
+            <div className="text-right">Markup</div>
             <div />
           </div>
 
-          {visibles.map((p) => (
+          {filas.map((p) => (
             /* Stretched link, same as the invoice book: a real <a> covering the
                row with the action buttons layered above it, so right-click and
                open-in-new-tab keep working and no <button> ends up inside an <a>. */
@@ -407,11 +412,11 @@ export default function Productos() {
                 )}
               </div>
               <div className="pointer-events-none relative z-10 text-right tabular-nums">
+                {/* Solo el markup: es la cifra con la que se pone el precio.
+                    El margen del periodo vive en el Resumen, calculado en SQL
+                    sobre renglones de factura — otra pregunta, otro lugar. */}
                 <div className="text-sm font-semibold">
-                  {margenTexto(p.cost_price, p.sale_price)}
-                </div>
-                <div className="text-[11px] text-neutral-600">
-                  {markupTexto(p.cost_price, p.sale_price)} sobre costo
+                  {markupTexto(p.cost_price, p.sale_price)}
                 </div>
               </div>
 
@@ -440,6 +445,16 @@ export default function Productos() {
             </div>
           ))}
         </div>
+      )}
+
+      {(filas.length > 0 || pagina > 0) && (
+        <Paginacion
+          pagina={pagina}
+          cuantos={filas.length}
+          total={total}
+          onPagina={setPagina}
+          cargando={cargando}
+        />
       )}
 
       <Confirmar

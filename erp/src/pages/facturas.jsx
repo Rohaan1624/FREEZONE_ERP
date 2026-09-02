@@ -4,8 +4,10 @@ import { Plus, ArrowRight, Pencil, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
-import { usd, fecha, estadoFactura, diasVencido, TONO_TEXTO } from "@/lib/format"
-import { sumar } from "@/lib/dinero"
+import { usd, fecha, TONO_TEXTO } from "@/lib/format"
+import { useTotales } from "@/lib/totales"
+import { Paginacion } from "@/components/paginacion"
+import { useDebounce, rango, filtroTexto } from "@/lib/lista"
 
 /**
  * Libro de facturas.
@@ -33,47 +35,55 @@ const COLS =
 
 export default function Facturas() {
   const navigate = useNavigate()
-  const [filas, setFilas] = React.useState([])
-  const [cargando, setCargando] = React.useState(true)
+  const [pagina, setPagina] = React.useState(0)
   const [error, setError] = React.useState("")
   const [filtro, setFiltro] = React.useState("Todas")
   const [busca, setBusca] = React.useState("")
+  const q = useDebounce(busca)
+
+  // Los datos recuerdan de qué consulta son. Así «está cargando» se DERIVA en
+  // render, sin un setState dentro del efecto, y al pasar de página se siguen
+  // viendo los renglones anteriores en lugar de parpadear en blanco.
+  const clave = `${pagina}|${filtro}|${q}`
+  const [datos, setDatos] = React.useState(null)
 
   React.useEffect(() => {
-    // The embedded payments(amount) works because payments.invoice_id has a
-    // foreign key to invoice.id — PostgREST derives the relationship from it.
-    // RLS applies to BOTH the parent and the embedded rows.
-    supabase
-      .from("invoice")
-      .select("*, payments(amount)")
+    let vivo = true
+
+    // invoice_listado, no invoice: la vista ya trae saldo y estado derivados,
+    // que es lo que permite filtrar «Vencida» en el servidor. Sobre la tabla
+    // cruda habría que traerse todo para saber cuáles lo están.
+    let consulta = supabase
+      .from("invoice_listado")
+      .select("*", { count: "exact" })
       .order("date_created", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setError(error.message)
-        else setFilas(data ?? [])
-        setCargando(false)
-      })
-  }, [])
+      .range(...rango(pagina))
 
-  const conEstado = filas.map((f) => ({ ...f, est: estadoFactura(f) }))
-  const q = busca.trim().toLowerCase()
-  const coincide = (f) =>
-    !q || f.invoice_num.toLowerCase().includes(q) || (f.client_name ?? "").toLowerCase().includes(q)
-  const visibles = conEstado.filter(
-    (f) => (filtro === "Todas" || f.est.etiqueta === filtro) && coincide(f)
-  )
+    if (filtro !== "Todas") consulta = consulta.eq("estado", filtro)
+    const f = filtroTexto(q, ["invoice_num", "client_name"])
+    if (f) consulta = consulta.or(f)
 
-  // sumar() y no reduce((t,f) => t + f.est.saldo, 0): saldo es un Big y su
-  // valueOf devuelve string, así que el `+` CONCATENABA — "0" + "7480.5" +
-  // "5140.25" salía "07480.55140.25", que M() no puede leer y mostraba $0.00.
-  const porCobrar = sumar(
-    conEstado.filter((f) => f.status !== "draft"),
-    (f) => f.est.saldo
-  )
+    consulta.then(({ data, error, count }) => {
+      if (!vivo) return
+      if (error) setError(error.message)
+      else {
+        setDatos({ clave, filas: data ?? [], total: count ?? 0 })
+        setError("")
+      }
+    })
+    return () => {
+      vivo = false
+    }
+  }, [clave, pagina, filtro, q])
 
+  const cargando = datos?.clave !== clave
+  const filas = datos?.filas ?? []
+  const total = datos?.total ?? null
+
+  // Los totales y los conteos por estado son del LIBRO ENTERO, no de la página.
+  const totales = useTotales("totales_facturas")
   const cuenta = (f) =>
-    f === "Todas"
-      ? conEstado.filter(coincide).length
-      : conEstado.filter((x) => x.est.etiqueta === f && coincide(x)).length
+    f === "Todas" ? totales?.documentos : totales?.por_estado?.[f]
 
   return (
     <section className="flex flex-col gap-4">
@@ -81,8 +91,8 @@ export default function Facturas() {
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Facturas</h3>
           <div className="text-[13px] text-neutral-700">
-            {filas.length} documentos · saldo pendiente{" "}
-            <span className="tabular-nums">{usd(porCobrar)}</span>
+            {totales ? totales.documentos : "…"} documentos · saldo pendiente{" "}
+            <span className="tabular-nums">{totales ? usd(totales.saldo_pendiente) : "…"}</span>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -90,7 +100,10 @@ export default function Facturas() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              onChange={(e) => {
+                setBusca(e.target.value)
+                setPagina(0)
+              }}
               placeholder="Buscar folio o cliente"
               className="entrada-texto w-[236px] pr-3 pl-9"
             />
@@ -111,7 +124,10 @@ export default function Facturas() {
         {FILTROS.map((f) => (
           <button
             key={f}
-            onClick={() => setFiltro(f)}
+            onClick={() => {
+              setFiltro(f)
+              setPagina(0)
+            }}
             className={cn(
               "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-[13px] transition-colors",
               filtro === f
@@ -120,7 +136,9 @@ export default function Facturas() {
             )}
           >
             {f}
-            <span className="text-[11px] text-neutral-500 tabular-nums">{cuenta(f)}</span>
+            <span className="text-[11px] text-neutral-500 tabular-nums">
+              {cuenta(f) ?? ""}
+            </span>
           </button>
         ))}
       </div>
@@ -132,20 +150,20 @@ export default function Facturas() {
       )}
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
-      {!cargando && !error && visibles.length === 0 && (
+      {!cargando && !error && filas.length === 0 && (
         <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
-            {filas.length === 0 ? "Todavía no hay facturas" : "Ningún documento coincide"}
+            {q || filtro !== "Todas" ? "Ningún documento coincide" : "Todavía no hay facturas"}
           </div>
           <div className="mt-1 text-[13px] text-neutral-700">
-            {filas.length === 0
-              ? "Crea la primera con el botón Nueva factura."
-              : "Prueba con otro filtro o búsqueda."}
+            {q || filtro !== "Todas"
+              ? "Prueba con otro filtro o búsqueda."
+              : "Crea la primera con el botón Nueva factura."}
           </div>
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {filas.length > 0 && (
         // Una sola hoja blanca que se ajusta a su contenido. Antes el contenedor
         // gris se estiraba y dejaba 380px de vacío debajo del último renglón.
         <div className="registro overflow-hidden">
@@ -165,9 +183,9 @@ export default function Facturas() {
             <div />
           </div>
 
-          {visibles.map((f) => {
-            const vencida = f.est.tono === "vencida"
-            const dias = vencida ? diasVencido(f.due_date) : 0
+          {filas.map((f) => {
+            const vencida = f.estado === "Vencida"
+            const dias = f.dias_vencida
             return (
               <Link
                 key={f.id}
@@ -187,14 +205,14 @@ export default function Facturas() {
                 </div>
                 <div className="text-right text-sm tabular-nums">{usd(f.total)}</div>
                 <div className="text-right text-sm font-semibold tabular-nums">
-                  {f.est.saldo.lt(0.01) ? (
+                  {Number(f.saldo) < 0.01 ? (
                     <span className="text-neutral-400">—</span>
                   ) : (
-                    usd(f.est.saldo)
+                    usd(f.saldo)
                   )}
                 </div>
-                <div className={cn("text-[13px]", TONO_TEXTO[f.est.tono])}>
-                  {f.est.etiqueta}
+                <div className={cn("text-[13px]", TONO_TEXTO[f.estado])}>
+                  {f.estado}
                   {/* Cuánto lleva vencida importa más que la etiqueta sola:
                       6 días y 90 días son dos conversaciones distintas. */}
                   {vencida && dias > 0 && (
@@ -225,6 +243,16 @@ export default function Facturas() {
             )
           })}
         </div>
+      )}
+
+      {(filas.length > 0 || pagina > 0) && (
+        <Paginacion
+          pagina={pagina}
+          cuantos={filas.length}
+          total={total}
+          onPagina={setPagina}
+          cargando={cargando}
+        />
       )}
     </section>
   )

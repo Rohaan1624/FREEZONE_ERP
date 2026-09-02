@@ -9,6 +9,8 @@ import {
   topSkus,
   cobrado,
   valorInventario,
+  desdeRpc,
+  argsRpc,
 } from "./resumen.js"
 
 const HOY = new Date(2026, 7, 25) // 25 ago 2026, a Tuesday
@@ -211,4 +213,106 @@ test("EXACTNESS: an invoice paid to the cent reads as settled, not 1e-15 owing",
 test("variación tolerates a zero base without dividing by it", () => {
   assert.equal(variacion(100, 0), null)
   assert.equal(variacion("120.00", "100.00"), 20)
+})
+
+/* ====================================================================== *
+ * ADAPTADOR DEL RPC
+ * ====================================================================== *
+ * La paridad SQL↔JS se verifica contra Postgres (ver backend/prueba-resumen.sql).
+ * Aquí se fija la otra mitad: que la respuesta del RPC se expanda a EXACTAMENTE
+ * las mismas formas que producían las funciones de referencia, para que el
+ * render no note el cambio.
+ */
+
+test("desdeRpc expande las cubetas dispersas a arreglos densos", () => {
+  const r = desdeRpc(
+    { barras: [{ i: 0, actual: "1450.00", previo: "0" }, { i: 6, actual: "11130.00", previo: "4350.00" }] },
+    "anio",
+    HOY
+  )
+  assert.equal(r.barras.actual.length, 12)
+  assert.equal(r.barras.actual[0].toFixed(2), "1450.00")
+  assert.equal(r.barras.actual[6].toFixed(2), "11130.00")
+  assert.equal(r.barras.actual[5].toFixed(2), "0.00") // cubeta ausente = cero
+  assert.equal(r.barras.previo[6].toFixed(2), "4350.00")
+  assert.equal(r.barras.totalActual.toFixed(2), "12580.00")
+  assert.equal(r.barras.anioActual, 2026)
+  assert.equal(r.barras.anioPrevio, 2025)
+})
+
+test("desdeRpc produce las mismas formas que las funciones de referencia", () => {
+  // Mismos datos por los dos caminos: filas crudas -> funciones viejas, y la
+  // respuesta equivalente del RPC -> adaptador.
+  const facturas = [
+    { status: "active", total: "1450.00", date_created: "2026-01-15", due_date: "2026-02-14", payments: [] },
+    { status: "active", total: "11130.00", date_created: "2026-07-20", due_date: "2026-08-19",
+      payments: [{ amount: "1000.00", date_created: "2026-08-05" }] },
+  ]
+  const ref = barrasIngresos(facturas, "anio", HOY)
+  const rpc = desdeRpc(
+    { barras: [{ i: 0, actual: "1450.00", previo: "0" }, { i: 6, actual: "11130.00", previo: "0" }] },
+    "anio",
+    HOY
+  )
+  assert.deepEqual(rpc.barras.etiquetas, ref.etiquetas)
+  assert.equal(rpc.barras.totalActual.toFixed(2), ref.totalActual.toFixed(2))
+  assert.deepEqual(rpc.barras.actualNum, ref.actualNum)
+})
+
+test("desdeRpc calcula utilidad y porcentaje del margen en JS", () => {
+  const r = desdeRpc({ margen: { ingreso: "12130.00", costo: "6400.00", sin_costo: 1 } }, "anio", HOY)
+  assert.equal(r.margen.utilidad.toFixed(2), "5730.00")
+  assert.equal(r.margen.porcentaje.toFixed(1), "47.2")
+  assert.equal(r.margen.sinCosto, 1)
+})
+
+test("sin ingreso el porcentaje es null, no NaN ni 100%", () => {
+  const r = desdeRpc({ margen: { ingreso: "0", costo: "0", sin_costo: 0 } }, "anio", HOY)
+  assert.equal(r.margen.porcentaje, null)
+})
+
+test("las cuatro cubetas de antigüedad siempre existen y en orden", () => {
+  const r = desdeRpc({ antiguedad: [{ i: 1, v: "10130.00" }] }, "anio", HOY)
+  assert.equal(r.edades.length, 4)
+  assert.deepEqual(r.edades.map((e) => e.k), ["Por vencer", "1 – 30 días", "31 – 60 días", "+ 60 días"])
+  assert.equal(r.edades[1].v.toFixed(2), "10130.00")
+  assert.equal(r.edades[0].v.toFixed(2), "0.00")
+})
+
+test("una respuesta vacía no truena: todo en cero", () => {
+  const r = desdeRpc({}, "anio", HOY)
+  assert.equal(r.barras.totalActual.toFixed(2), "0.00")
+  assert.equal(r.edades.length, 4)
+  assert.deepEqual(r.top, [])
+  assert.equal(r.pagado.toFixed(2), "0.00")
+  assert.equal(r.inv.skus, 0)
+  assert.equal(r.numFacturas, 0)
+})
+
+test("el dinero pasa por Big sin tocar Number", () => {
+  // Un numeric convertido a double puede volver como 12480.499999999998.
+  const r = desdeRpc({ cobrado: "12480.50", inventario: { valor: "0.1", sin_costo: 0, skus: 1 } }, "anio", HOY)
+  assert.equal(r.pagado.toFixed(2), "12480.50")
+  assert.equal(r.inv.valor.toString(), "0.1")
+})
+
+test("argsRpc manda la ventana local, sin correrse por zona horaria", () => {
+  const a = argsRpc("anio", HOY)
+  assert.deepEqual(a, {
+    p_desde: "2026-01-01",
+    p_hasta: "2027-01-01",
+    p_desde_prev: "2025-01-01",
+    p_hasta_prev: "2026-01-01",
+    p_periodo: "anio",
+  })
+})
+
+test("argsRpc para mes y semana", () => {
+  assert.deepEqual(
+    { ...argsRpc("mes", HOY) },
+    { p_desde: "2026-08-01", p_hasta: "2026-09-01", p_desde_prev: "2025-08-01", p_hasta_prev: "2025-09-01", p_periodo: "mes" }
+  )
+  // El 25 de agosto de 2026 es martes -> la semana arranca el lunes 24.
+  assert.equal(argsRpc("semana", HOY).p_desde, "2026-08-24")
+  assert.equal(argsRpc("semana", HOY).p_hasta, "2026-08-31")
 })

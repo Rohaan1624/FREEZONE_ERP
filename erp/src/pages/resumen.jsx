@@ -14,19 +14,10 @@ import {
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase"
+import { rpc } from "@/lib/supabase"
 import { usd, n0 } from "@/lib/format"
 import { div, sumar } from "@/lib/dinero"
-import {
-  barrasIngresos,
-  variacion,
-  antiguedad,
-  margenPeriodo,
-  topSkus,
-  cobrado,
-  valorInventario,
-  ventana,
-} from "@/lib/resumen"
+import { variacion, ventana, desdeRpc, argsRpc } from "@/lib/resumen"
 
 /**
  * Resumen.
@@ -73,50 +64,38 @@ const rotulo = "rotulo"
 
 export default function Resumen() {
   const [periodo, setPeriodo] = React.useState("anio")
-  const [facturas, setFacturas] = React.useState([])
-  const [lineas, setLineas] = React.useState([])
-  const [productos, setProductos] = React.useState([])
-  const [cargando, setCargando] = React.useState(true)
+  // Los datos recuerdan de qué periodo son. Así «está cargando» se DERIVA en
+  // render en vez de necesitar un setState dentro del efecto, y al cambiar de
+  // periodo se siguen viendo las barras anteriores hasta que llegan las nuevas
+  // en lugar de vaciarse la pantalla.
+  const [datos, setDatos] = React.useState(null)
   const [error, setError] = React.useState("")
   const [tabla, setTabla] = React.useState(false)
   const [activa, setActiva] = React.useState(null)
 
+  // La suma la hace Postgres: vuelven doce cubetas en vez de todos los
+  // renglones de todas las facturas. Se vuelve a pedir al cambiar de periodo,
+  // porque la ventana es parte de la consulta.
   React.useEffect(() => {
     let vivo = true
-    Promise.all([
-      supabase.from("invoice").select("id,total,status,date_created,due_date,payments(amount,date_created)"),
-      supabase
-        .from("transaction")
-        .select("qty,unit_price,type,product(sku,description,cost_price),invoice!inner(status,date_created)"),
-      supabase.from("product").select("stock,cost_price"),
-    ]).then(([a, b, c]) => {
-      if (!vivo) return
-      const e = a.error || b.error || c.error
-      if (e) setError(e.message)
-      setFacturas(a.data ?? [])
-      setLineas(b.data ?? [])
-      setProductos(c.data ?? [])
-      setCargando(false)
-    })
+    rpc("resumen_dashboard", argsRpc(periodo))
+      .then((r) => {
+        if (!vivo) return
+        setDatos({ periodo, ...desdeRpc(r, periodo) })
+        setError("")
+      })
+      .catch((e) => vivo && setError(e.message))
     return () => {
       vivo = false
     }
-  }, [])
+  }, [periodo])
 
-  const barras = barrasIngresos(facturas, periodo)
-  const varia = variacion(barras.totalActual, barras.totalPrevio)
-  const edades = antiguedad(facturas)
-  const margen = margenPeriodo(lineas, periodo)
-  const top = topSkus(lineas, periodo)
-  const pagado = cobrado(facturas, periodo)
-  const inv = valorInventario(productos)
   const { desde, hasta } = ventana(periodo)
+  if (!datos) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
 
-  const numFacturas = facturas.filter((f) => {
-    if (f.status === "draft" || !f.date_created) return false
-    const d = new Date(f.date_created.slice(0, 10) + "T00:00:00")
-    return d >= desde && d < hasta
-  }).length
+  const viejo = datos.periodo !== periodo // ya se pidió el nuevo, aún no llega
+  const { barras, edades, margen, top, pagado, inv, numFacturas } = datos
+  const varia = variacion(barras.totalActual, barras.totalPrevio)
 
   // Geometry uses the plain-number twins (…Num). The Big values are money and
   // are only ever formatted, never divided into a percentage.
@@ -126,8 +105,6 @@ export default function Resumen() {
 
   const rango = new Intl.DateTimeFormat("es", { day: "numeric", month: "short" })
   const etiquetaRango = `${rango.format(desde)} – ${rango.format(new Date(hasta - 86400000))} ${desde.getFullYear()}`
-
-  if (cargando) return <div className="p-6 text-sm text-neutral-700">Cargando…</div>
 
   const indicadores = [
     {
@@ -168,7 +145,7 @@ export default function Resumen() {
   ]
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn("flex flex-col gap-4 transition-opacity", viejo && "opacity-60")}>
       {error && (
         <div className={cn("flex items-center gap-2.5 px-4 py-3 text-[13px]", hoja)}>
           <CircleAlert className="size-[19px] shrink-0" />

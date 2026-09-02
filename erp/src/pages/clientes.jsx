@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { Confirmar } from "@/components/confirmar"
 import { usd } from "@/lib/format"
-import { sumar } from "@/lib/dinero"
+import { useTotales } from "@/lib/totales"
+import { Paginacion } from "@/components/paginacion"
+import { useDebounce, rango, filtroTexto } from "@/lib/lista"
 
 const TIPOS = ["company", "individual", "government"]
 const ETIQUETA_TIPO = { company: "Empresa", individual: "Persona", government: "Gobierno" }
@@ -24,8 +26,7 @@ const VACIO = {
 }
 
 export default function Clientes() {
-  const [filas, setFilas] = React.useState([])
-  const [cargando, setCargando] = React.useState(true)
+  const [pagina, setPagina] = React.useState(0)
   const [error, setError] = React.useState("")
   const [busca, setBusca] = React.useState("")
   const [form, setForm] = React.useState(null) // null = closed, {} = new, {id} = edit
@@ -40,22 +41,35 @@ export default function Clientes() {
   const [recarga, setRecarga] = React.useState(0)
   const cargar = React.useCallback(() => setRecarga((n) => n + 1), [])
 
+  const q = useDebounce(busca)
+  const clave = `${pagina}|${q}|${recarga}`
+  const [datos, setDatos] = React.useState(null)
+
   React.useEffect(() => {
     let vivo = true
-    supabase
+    // Búsqueda y orden en el servidor: filtrar el arreglo cargado solo
+    // encontraría lo que ya estaba en la página visible.
+    let consulta = supabase
       .from("client")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("name")
-      .then(({ data, error }) => {
-        if (!vivo) return
-        if (error) setError(error.message)
-        else setFilas(data ?? [])
-        setCargando(false)
-      })
+      .range(...rango(pagina))
+    const f = filtroTexto(q, ["name", "identifier", "contact"])
+    if (f) consulta = consulta.or(f)
+
+    consulta.then(({ data, error, count }) => {
+      if (!vivo) return
+      if (error) setError(error.message)
+      else setDatos({ clave, filas: data ?? [], total: count ?? 0 })
+    })
     return () => {
       vivo = false
     }
-  }, [recarga])
+  }, [clave, pagina, q, recarga])
+
+  const cargando = datos?.clave !== clave
+  const filas = datos?.filas ?? []
+  const total = datos?.total ?? null
 
   async function guardar() {
     setError("")
@@ -113,15 +127,8 @@ export default function Clientes() {
     cargar()
   }
 
-  const q = busca.trim().toLowerCase()
-  const visibles = filas.filter(
-    (c) =>
-      !q ||
-      c.name.toLowerCase().includes(q) ||
-      (c.identifier ?? "").toLowerCase().includes(q) ||
-      (c.contact ?? "").toLowerCase().includes(q)
-  )
-  const porCobrar = sumar(filas, (c) => c.balance)
+  // Del servidor: sumar `filas` daría solo lo cargado.
+  const totales = useTotales("totales_clientes", recarga)
 
 
   // Mismo sistema que el libro de facturas: hojas blancas con filete, reglas
@@ -140,8 +147,8 @@ export default function Clientes() {
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Clientes</h3>
           <div className="text-[13px] text-neutral-700">
-            {filas.length} cuentas · por cobrar{" "}
-            <span className="tabular-nums">{usd(porCobrar)}</span>
+            {totales ? totales.cuentas : "…"} cuentas · por cobrar{" "}
+            <span className="tabular-nums">{totales ? usd(totales.por_cobrar) : "…"}</span>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -149,7 +156,10 @@ export default function Clientes() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              onChange={(e) => {
+                setBusca(e.target.value)
+                setPagina(0)
+              }}
               placeholder="Buscar nombre, RUC o contacto"
               className="entrada-texto w-[260px] pr-3 pl-9"
             />
@@ -292,20 +302,18 @@ export default function Clientes() {
 
       {cargando && <div className="p-6 text-center text-sm text-neutral-700">Cargando…</div>}
 
-      {!cargando && visibles.length === 0 && (
+      {!cargando && filas.length === 0 && (
         <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
-            {filas.length === 0 ? "Todavía no hay clientes" : "Ninguna cuenta coincide"}
+            {q ? "Ninguna cuenta coincide" : "Todavía no hay clientes"}
           </div>
           <div className="mt-1 text-[13px] text-neutral-700">
-            {filas.length === 0
-              ? "Crea el primero para poder facturar."
-              : "Prueba con otra búsqueda."}
+            {q ? "Prueba con otra búsqueda." : "Crea el primero para poder facturar."}
           </div>
         </div>
       )}
 
-      {visibles.length > 0 && (
+      {filas.length > 0 && (
         // Tabla y no rejilla de tarjetas: aquí se viene a barrer la columna de
         // saldos de arriba abajo, y en tarjetas cada saldo queda a distinta
         // altura, así que no se pueden comparar de un vistazo.
@@ -324,7 +332,7 @@ export default function Clientes() {
             <div />
           </div>
 
-          {visibles.map((c) => (
+          {filas.map((c) => (
             /**
              * The whole row opens the statement. Built as a "stretched link":
              * a REAL <a> absolutely covering the row, with the action buttons
@@ -395,6 +403,16 @@ export default function Clientes() {
             </div>
           ))}
         </div>
+      )}
+
+      {(filas.length > 0 || pagina > 0) && (
+        <Paginacion
+          pagina={pagina}
+          cuantos={filas.length}
+          total={total}
+          onPagina={setPagina}
+          cargando={cargando}
+        />
       )}
 
       <Confirmar

@@ -7,32 +7,51 @@ import { supabase } from "@/lib/supabase"
 import { usd, n0, fecha } from "@/lib/format"
 import { mul, div, sumar } from "@/lib/dinero"
 import { SubNavInventario } from "@/components/sub-nav-inventario"
+import { useTotales } from "@/lib/totales"
+import { Paginacion } from "@/components/paginacion"
+import { useDebounce, rango, filtroTexto } from "@/lib/lista"
 
 const FILTROS = ["Todas", "Pendientes", "Recibidas"]
 
 export default function Entradas() {
-  const [filas, setFilas] = React.useState([])
-  const [cargando, setCargando] = React.useState(true)
+  const [pagina, setPagina] = React.useState(0)
   const [error, setError] = React.useState("")
   const [filtro, setFiltro] = React.useState("Todas")
   const [busca, setBusca] = React.useState("")
+  const q = useDebounce(busca)
+
+  const clave = `${pagina}|${filtro}|${q}`
+  const [datos, setDatos] = React.useState(null)
 
   React.useEffect(() => {
     let vivo = true
-    supabase
+    // El costeo por renglón sale de sus propias líneas embebidas, así que se
+    // sigue calculando aquí — pero solo para las cincuenta de esta página, no
+    // para toda la tabla.
+    let consulta = supabase
       .from("purchase")
-      .select("*, entry(qty_unit, cost_unit, type)")
+      .select("*, entry(qty_unit, cost_unit, type)", { count: "exact" })
       .order("date_created", { ascending: false })
-      .then(({ data, error }) => {
-        if (!vivo) return
-        if (error) setError(error.message)
-        else setFilas(data ?? [])
-        setCargando(false)
-      })
+      .range(...rango(pagina))
+
+    if (filtro !== "Todas")
+      consulta = consulta.eq("status", filtro === "Pendientes" ? "active" : "closed")
+    const f = filtroTexto(q, ["entry_no", "provider", "origin"])
+    if (f) consulta = consulta.or(f)
+
+    consulta.then(({ data, error, count }) => {
+      if (!vivo) return
+      if (error) setError(error.message)
+      else setDatos({ clave, filas: data ?? [], total: count ?? 0 })
+    })
     return () => {
       vivo = false
     }
-  }, [])
+  }, [clave, pagina, filtro, q])
+
+  const cargando = datos?.clave !== clave
+  const filas = datos?.filas ?? []
+  const total = datos?.total ?? null
 
   // Freight/handling is prorated per unit received — computed for display only.
   // The database stores mercancía and gastos separately; nothing is written back.
@@ -58,18 +77,9 @@ export default function Entradas() {
     }
   })
 
-  const q = busca.trim().toLowerCase()
-  const visibles = conCosteo.filter(
-    (p) =>
-      (filtro === "Todas" ||
-        (filtro === "Pendientes" ? p.status === "active" : p.status === "closed")) &&
-      (!q ||
-        p.entry_no.toLowerCase().includes(q) ||
-        (p.provider ?? "").toLowerCase().includes(q) ||
-        (p.origin ?? "").toLowerCase().includes(q))
-  )
-  const pendientes = conCosteo.filter((p) => p.status === "active").length
-
+  const visibles = conCosteo
+  const totales = useTotales("totales_entradas")
+  const pendientes = totales?.pendientes ?? 0
 
   const COLS =
     "grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_86px_118px_118px_128px_104px_30px]"
@@ -81,6 +91,13 @@ export default function Entradas() {
       <div className="flex flex-wrap items-start gap-4">
         <div>
           <h3 className="m-0 text-[21px] font-semibold">Entradas</h3>
+          <div className="text-[13px] text-neutral-700">
+            {totales ? totales.entradas : "…"} entradas ·{" "}
+            {totales ? totales.pendientes : "…"} pendientes · recibido{" "}
+            <span className="tabular-nums">
+              {totales ? usd(totales.costo_recibido) : "…"}
+            </span>
+          </div>
           <div className="max-w-[64ch] text-[13px] text-neutral-700">
             Compras de mercancía con sus fletes y gastos. La existencia sube al cerrar la entrada,
             no al capturarla — así puedes corregirla mientras esté pendiente.
@@ -91,7 +108,10 @@ export default function Entradas() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              onChange={(e) => {
+                setBusca(e.target.value)
+                setPagina(0)
+              }}
               placeholder="Buscar entrada, proveedor u origen"
               className="entrada-texto w-[270px] pr-3 pl-9"
             />
@@ -117,7 +137,10 @@ export default function Entradas() {
         {FILTROS.map((f) => (
           <button
             key={f}
-            onClick={() => setFiltro(f)}
+            onClick={() => {
+              setFiltro(f)
+              setPagina(0)
+            }}
             className={cn(
               "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-[13px] transition-colors",
               filtro === f
@@ -138,12 +161,12 @@ export default function Entradas() {
       {!cargando && visibles.length === 0 && (
         <div className="registro p-10 text-center">
           <div className="text-base font-semibold">
-            {filas.length === 0 ? "Todavía no hay entradas" : "Ninguna entrada coincide"}
+            {q || filtro !== "Todas" ? "Ninguna entrada coincide" : "Todavía no hay entradas"}
           </div>
           <div className="mt-1 text-[13px] text-neutral-700">
-            {filas.length === 0
-              ? "Registra la primera para que entre mercancía al inventario."
-              : "Prueba con otro filtro o búsqueda."}
+            {q || filtro !== "Todas"
+              ? "Prueba con otro filtro o búsqueda."
+              : "Registra la primera para que entre mercancía al inventario."}
           </div>
         </div>
       )}
@@ -209,6 +232,16 @@ export default function Entradas() {
             </Link>
           ))}
         </div>
+      )}
+
+      {(visibles.length > 0 || pagina > 0) && (
+        <Paginacion
+          pagina={pagina}
+          cuantos={visibles.length}
+          total={total}
+          onPagina={setPagina}
+          cargando={cargando}
+        />
       )}
     </div>
   )

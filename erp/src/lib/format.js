@@ -58,11 +58,11 @@ export function estadoFactura(inv) {
  * y por eso se ve desde la puerta.
  */
 export const TONO_TEXTO = {
-  vencida: "text-destructive font-semibold",
-  parcial: "text-ink",
-  pendiente: "text-ink",
-  pagada: "text-neutral-600",
-  borrador: "text-neutral-600 italic",
+  Vencida: "text-destructive font-semibold",
+  Parcial: "text-ink",
+  Pendiente: "text-ink",
+  Pagada: "text-neutral-600",
+  Borrador: "text-neutral-600 italic",
 }
 
 /* -------------------------------------------------------------- márgenes -- */
@@ -115,17 +115,53 @@ export function margenTexto(costo, precio) {
 }
 
 /**
- * Markup — the same two figures measured against COST instead of price.
- *   margen  = (precio - costo) / precio   capped at 100%, share of the sale
- *   markup  = (precio - costo) / costo    unbounded, how far you marked it up
+ * MARKUP: qué tanto se le sube al costo para llegar al precio.
  *
- * Returned as a MULTIPLIER (precio / costo) rather than a percentage, because
- * the percentages get unreadable fast: 0.50 -> 12.00 is 2300% markup but a
- * plain 24x. Note those are the same fact — profit is 23x cost, price is 24x.
+ *   markup = (precio - costo) / costo    5.74 -> 7.75 da 35.0%
  *
- * Null when it cannot be known, INCLUDING a cost of exactly 0: free goods have
- * no meaningful markup (you cannot multiply zero into a price), even though
- * their margin is a perfectly real 100%.
+ * Es la cifra con la que se PONE el precio («al costo le meto 35»), y por eso
+ * es la que va grande en el catálogo. El margen contesta otra pregunta —qué
+ * parte de la venta es utilidad— y con los mismos números da 25.9%.
+ *
+ * Null cuando no se puede saber, incluyendo costo exactamente 0: no hay
+ * porcentaje que suba desde cero hasta un precio.
+ */
+export function markup(costo, precio) {
+  const c = aNumero(costo)
+  const v = aNumero(precio)
+  if (c === null || v === null || c === 0) return null
+  const r = div(sub(v, c), c)
+  return r === null ? null : Number(r.times(100).toString())
+}
+
+/** El markup para pantalla: '35.0%' o '—'. */
+export function markupTexto(costo, precio) {
+  const m = markup(costo, precio)
+  return m === null ? "—" : `${m.toFixed(1)}%`
+}
+
+/**
+ * MULTIPLICADOR: cuántas veces el costo es el precio.
+ *
+ *   multiplicador = precio / costo             5.00 -> 7.00 da 1.4x
+ *   markup        = (precio - costo) / costo   los mismos datos dan 40%
+ *   margen        = (precio - costo) / precio  los mismos datos dan 28.6%
+ *
+ * LAS TRES SON DISTINTAS y se confunden con facilidad. Esta función devuelve
+ * la PRIMERA, que es la que un comerciante usa al hablar («lo vendo a 1.4»),
+ * porque en porcentaje se vuelve ilegible rápido: 0.50 -> 12.00 es un markup
+ * de 2300%, pero un llano 24x.
+ *
+ * YA NO SE PINTA EN EL CATÁLOGO, y la razón vale registrarla: con costo 5.74
+ * y precio 7.75 el multiplicador es 1.3502 y a un decimal se redondea a
+ * «1.4x». Ese 1.35 ES el markup de 35% (multiplicador = 1 + markup), pero el
+ * redondeo lo escondía justo cuando más se parecía a la cifra buscada. En
+ * porcentaje no hay dónde esconderlo. Se conserva la función porque la
+ * distinción entre las tres medidas es real y las pruebas la documentan.
+ *
+ * Null cuando no se puede saber, INCLUYENDO costo exactamente 0: la mercancía
+ * gratis no tiene multiplicador (no hay número que multiplique a cero hasta el
+ * precio), aunque su margen sí sea un 100% perfectamente real.
  */
 export function multiplicador(costo, precio) {
   const c = aNumero(costo)
@@ -135,8 +171,8 @@ export function multiplicador(costo, precio) {
   return r === null ? null : Number(r.toString())
 }
 
-/** Markup for display: '24.0×', '1.5×', or '—'. */
-export function markupTexto(costo, precio) {
+/** El multiplicador para pantalla: '24.0×', '1.5×' o '—'. */
+export function multiplicadorTexto(costo, precio) {
   const m = multiplicador(costo, precio)
   return m === null ? "—" : `${m.toFixed(1)}×`
 }
