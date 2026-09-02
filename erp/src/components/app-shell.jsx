@@ -1,6 +1,6 @@
 import * as React from "react"
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom"
-import { ChartLine, Receipt, Users, Package, Truck, LogOut, Settings } from "lucide-react"
+import { ChartLine, Receipt, Users, Package, Truck, Sparkles, LogOut, Settings } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth, RUTA_NUEVA_CLAVE } from "@/lib/auth"
@@ -12,6 +12,7 @@ const NAV = [
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/productos", label: "Productos", icon: Package },
   { to: "/entradas", label: "Entradas", icon: Truck },
+  { to: "/asistente", label: "Asistente", icon: Sparkles },
 ]
 
 export function AppShell() {

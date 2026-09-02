@@ -18,6 +18,7 @@ import Entrada from '@/pages/entrada'
 import Ajustes from '@/pages/ajustes'
 import Resumen from '@/pages/resumen'
 import Importar from '@/pages/importar'
+import Asistente from '@/pages/asistente'
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
           <Route path="entradas/:id" element={<Entrada />} />
           <Route path="empresa" element={<Empresa />} />
           <Route path="importar" element={<Importar />} />
+          <Route path="asistente" element={<Asistente />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
