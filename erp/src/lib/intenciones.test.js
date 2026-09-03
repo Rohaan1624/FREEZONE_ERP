@@ -8,6 +8,9 @@ import {
   NO_ENTENDIDO,
   valida,
   construyePrompt,
+  construyeMensajes,
+  pareceCifra,
+  TURNOS_DE_CONTEXTO,
   ejemplosSugeridos,
 } from "./intenciones.js"
 
@@ -20,8 +23,8 @@ import {
  */
 
 test("acepta una respuesta bien formada", () => {
-  const r = valida('{"intencion":"existencia_sku","parametros":{"sku":"ABC-100"}}')
-  assert.deepEqual(r, { ok: true, intencion: "existencia_sku", parametros: { sku: "ABC-100" } })
+  const r = valida('{"intencion":"existencia","parametros":{"producto":"ABC-100"}}')
+  assert.deepEqual(r, { ok: true, intencion: "existencia", parametros: { producto: "ABC-100" } })
 })
 
 test("acepta un objeto ya parseado, no solo texto", () => {
@@ -77,8 +80,10 @@ test("una intención fuera del catálogo se RECHAZA, no se aproxima", () => {
 })
 
 test("no acepta nombres parecidos a los del catálogo", () => {
-  for (const n of ["existencia", "existencia_skus", "EXISTENCIA_SKU", "saldo"]) {
-    assert.equal(valida({ intencion: n, parametros: { sku: "A" } }).ok, false, n)
+  // `existencia_sku` y `movimientos_sku` eran los nombres VIEJOS: quedan aquí
+  // para que un renombre a medias no pase inadvertido.
+  for (const n of ["existencias", "existencia_sku", "movimientos_sku", "EXISTENCIA", "saldo"]) {
+    assert.equal(valida({ intencion: n, parametros: { producto: "A" } }).ok, false, n)
   }
 })
 
@@ -91,18 +96,18 @@ test("no_entendido se distingue de un error de formato", () => {
 /* ------------------------------------------------------------- parámetros */
 
 test("un parámetro requerido que falta se reporta por su nombre", () => {
-  const r = valida('{"intencion":"existencia_sku","parametros":{}}')
+  const r = valida('{"intencion":"existencia","parametros":{}}')
   assert.equal(r.ok, false)
-  assert.match(r.motivo, /sku/)
+  assert.match(r.motivo, /producto/)
 })
 
 test("los parámetros NO declarados se tiran", () => {
   // Lo que el modelo invente nunca debe llegar a una consulta.
   const r = valida({
-    intencion: "existencia_sku",
-    parametros: { sku: "ABC-100", limite: 9999, tabla: "auth.users", user_id: "otro" },
+    intencion: "existencia",
+    parametros: { producto: "ABC-100", limite: 9999, tabla: "auth.users", user_id: "otro" },
   })
-  assert.deepEqual(r.parametros, { sku: "ABC-100" })
+  assert.deepEqual(r.parametros, { producto: "ABC-100" })
 })
 
 test("parametros ausente o de otro tipo no truena", () => {
@@ -171,11 +176,24 @@ test("el prompt incluye TODAS las intenciones del catálogo", () => {
   assert.ok(p.includes(NO_ENTENDIDO))
 })
 
-test("el prompt le prohíbe contestar y le exige JSON", () => {
+test("el prompt le exige JSON y le prohíbe las cifras de memoria", () => {
+  // Ya NO le prohíbe contestar: ahora puede conversar. Lo que no puede es
+  // decir un número — esa es la garantía que quedó, y es la que sostiene que
+  // se le pueda creer al asistente.
   const p = construyePrompt()
-  assert.match(p, /NO CONTESTAS/)
   assert.match(p, /SOLO un objeto JSON/)
+  assert.match(p, /NUNCA escribas cifras/)
   assert.match(p, /anio, mes, semana/)
+})
+
+test("el prompt describe los dos caminos", () => {
+  const p = construyePrompt()
+  assert.match(p, /CONSULTAR EL SISTEMA/)
+  assert.match(p, /CONVERSAR/)
+  assert.match(p, /"respuesta"/)
+  // Ante la duda, el dato: contestar de memoria algo que estaba en la base es
+  // el modo de fallar que más caro sale.
+  assert.match(p, /ANTE LA DUDA, CONSULTA/)
 })
 
 test("todos los ejemplos del catálogo son frases en español, no código", () => {
@@ -237,31 +255,31 @@ test("las sugerencias se reparten por el catálogo, no son las primeras", () => 
 
 test("un seguimiento hereda el dato omitido del contexto", () => {
   // «¿y sus movimientos?» llega sin sku; lo pone la app, no el modelo.
-  const r = valida({ intencion: "movimientos_sku", parametros: {} }, { sku: "ABC-100" })
+  const r = valida({ intencion: "movimientos", parametros: {} }, { producto: "ABC-100" })
   assert.equal(r.ok, true)
-  assert.equal(r.parametros.sku, "ABC-100")
+  assert.equal(r.parametros.producto, "ABC-100")
 })
 
 test("lo que el modelo SÍ dice gana sobre el contexto", () => {
   const r = valida(
-    { intencion: "movimientos_sku", parametros: { sku: "DEF-200" } },
-    { sku: "ABC-100" }
+    { intencion: "movimientos", parametros: { producto: "DEF-200" } },
+    { producto: "ABC-100" }
   )
-  assert.equal(r.parametros.sku, "DEF-200")
+  assert.equal(r.parametros.producto, "DEF-200")
 })
 
 test("sin contexto, un requerido omitido sigue fallando", () => {
-  assert.equal(valida({ intencion: "movimientos_sku", parametros: {} }, {}).ok, false)
-  assert.equal(valida({ intencion: "movimientos_sku", parametros: {} }).ok, false)
+  assert.equal(valida({ intencion: "movimientos", parametros: {} }, {}).ok, false)
+  assert.equal(valida({ intencion: "movimientos", parametros: {} }).ok, false)
 })
 
 test("el contexto no puede colar parámetros que la intención no declara", () => {
   // Heredar de un turno anterior no debe ampliar lo que llega a la consulta.
   const r = valida(
-    { intencion: "movimientos_sku", parametros: {} },
-    { sku: "ABC-100", cliente: "John Doe", tabla: "auth.users" }
+    { intencion: "movimientos", parametros: {} },
+    { producto: "ABC-100", cliente: "John Doe", tabla: "auth.users" }
   )
-  assert.deepEqual(r.parametros, { sku: "ABC-100" })
+  assert.deepEqual(r.parametros, { producto: "ABC-100" })
 })
 
 test("el prompt le explica al modelo que puede omitir en un seguimiento", () => {
@@ -302,4 +320,242 @@ test("las sociales van al final del catálogo", () => {
 test("las sociales aparecen en el prompt como cualquier otra", () => {
   const p = construyePrompt()
   for (const n of SOCIALES) assert.ok(p.includes(n), `falta ${n} en el prompt`)
+})
+
+/* ================================================================== *
+ * LOS TRES FALLOS QUE SE REPORTARON
+ * ================================================================== *
+ * 1. Con el NOMBRE del producto (no el SKU) no encontraba nada.
+ * 2. «lista todos los peines» no funcionaba.
+ * 3. «las últimas facturas» no funcionaba.
+ *
+ * Los tres eran lo mismo: el catálogo no tenía dónde meterlos.
+ */
+
+test("el parámetro de producto NO se llama sku", () => {
+  // Se llamaba `sku`, y con ese nombre el modelo se negaba a rellenarlo con un
+  // nombre: veía «sku», no veía un código en la pregunta y devolvía
+  // no_entendido. El nombre del parámetro ES parte del prompt.
+  for (const n of ["buscar_productos", "existencia", "movimientos"]) {
+    assert.ok(INTENCIONES[n].params.producto, `${n} debe pedir "producto"`)
+    assert.ok(!INTENCIONES[n].params.sku, `${n} no debe pedir "sku"`)
+  }
+})
+
+test("hay una intención para listar varios productos por nombre", () => {
+  const r = valida({ intencion: "buscar_productos", parametros: { producto: "peines" } })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.parametros, { producto: "peines" })
+})
+
+test("hay una intención para las facturas más recientes", () => {
+  const r = valida({ intencion: "ultimas_facturas", parametros: {} })
+  assert.equal(r.ok, true)
+  assert.equal(r.intencion, "ultimas_facturas")
+})
+
+test("buscar_productos va ANTES que existencia en el catálogo", () => {
+  // Un modelo chico se agarra de la primera opción que le encaja. «¿qué peines
+  // tengo?» encaja en las dos; si `existencia` va primero se lleva las
+  // preguntas en plural, resuelve a varios productos y muere en «sé más
+  // específico». El orden es el arreglo, no un detalle.
+  const nombres = Object.keys(INTENCIONES)
+  assert.ok(
+    nombres.indexOf("buscar_productos") < nombres.indexOf("existencia"),
+    "existencia se va a tragar las preguntas en plural"
+  )
+})
+
+test("el prompt le dice que un nombre vale igual que un SKU", () => {
+  const p = construyePrompt()
+  assert.match(p, /NOMBRE vale igual que un SKU/)
+  // Y que el plural va por otra intención.
+  assert.match(p, /PLURAL/)
+  assert.ok(p.includes("buscar_productos"))
+})
+
+/* ================================================================== *
+ * EL HILO
+ * ================================================================== */
+
+test("el hilo empieza con el sistema y acaba con la pregunta nueva", () => {
+  const m = construyeMensajes([], "¿cuántos peines tengo?")
+  assert.equal(m.length, 2)
+  assert.equal(m[0].role, "system")
+  assert.equal(m[1].role, "user")
+  assert.equal(m[1].content, "¿cuántos peines tengo?")
+})
+
+test("cada turno previo entra como pregunta + el JSON que se ejecutó", () => {
+  const m = construyeMensajes(
+    [{ pregunta: "¿cuántos PG-123 hay?", intencion: "existencia", parametros: { producto: "PG-123" } }],
+    "¿y sus movimientos?"
+  )
+  assert.deepEqual(m.map((x) => x.role), ["system", "user", "assistant", "user"])
+  assert.equal(m[1].content, "¿cuántos PG-123 hay?")
+  assert.deepEqual(JSON.parse(m[2].content), {
+    intencion: "existencia",
+    parametros: { producto: "PG-123" },
+  })
+  assert.equal(m[3].content, "¿y sus movimientos?")
+})
+
+test("en el hilo NO va ninguna cifra, solo la intención", () => {
+  // Esta es la regla que sostiene todo: si en su ventana no hay números, no
+  // hay número que pueda repetir mal en el turno siguiente.
+  const m = construyeMensajes(
+    [
+      {
+        pregunta: "¿cuánto me debe John Doe?",
+        intencion: "saldo_cliente",
+        parametros: { cliente: "John Doe" },
+        // Lo que la app pintó de verdad, que NO debe viajar:
+        resumen: "John Doe te debe $18,450.75 en 3 facturas abiertas.",
+      },
+    ],
+    "¿y qué facturas son?"
+  )
+  const todo = m.map((x) => x.content).join("\n")
+  assert.ok(!todo.includes("18,450.75"), "una cifra se colo al hilo")
+  assert.ok(!todo.includes("$"), "un monto se colo al hilo")
+})
+
+test("el hilo se recorta a los últimos turnos", () => {
+  const largo = Array.from({ length: 20 }, (_, i) => ({
+    pregunta: `p${i}`,
+    intencion: "por_cobrar",
+    parametros: {},
+  }))
+  const m = construyeMensajes(largo, "una más")
+  // sistema + 2 por turno conservado + la pregunta nueva
+  assert.equal(m.length, 1 + TURNOS_DE_CONTEXTO * 2 + 1)
+  // Y son los ÚLTIMOS, no los primeros.
+  assert.equal(m[1].content, `p${20 - TURNOS_DE_CONTEXTO}`)
+})
+
+test("los turnos que no se ejecutaron no entran al hilo", () => {
+  const m = construyeMensajes(
+    [
+      { pregunta: "asdfgh", error: "No entendí la pregunta." },
+      { pregunta: "¿cuánto vendí?", intencion: "ventas_periodo", parametros: { periodo: "mes" } },
+    ],
+    "¿y el año?"
+  )
+  const todo = m.map((x) => x.content).join("\n")
+  assert.ok(!todo.includes("asdfgh"), "un turno fallido se colo al hilo")
+  assert.equal(m.length, 4)
+})
+
+test("un historial ausente o de otro tipo no truena", () => {
+  for (const h of [undefined, null, "nada", 7, {}]) {
+    const m = construyeMensajes(h, "hola")
+    assert.equal(m.length, 2, JSON.stringify(h))
+  }
+})
+
+/* ================================================================== *
+ * LA VÍA CONVERSACIONAL
+ * ================================================================== *
+ * El asistente ya puede charlar, no solo clasificar. Esto abre la única
+ * rendija por la que una cifra inventada podría llegar a la pantalla, así
+ * que la rendija tiene su propio guardia.
+ */
+
+test("una respuesta conversacional se acepta", () => {
+  const r = valida('{"respuesta":"Un SKU es el código con el que identificas cada producto."}')
+  assert.equal(r.ok, true)
+  assert.equal(r.charla, "Un SKU es el código con el que identificas cada producto.")
+  assert.equal(r.intencion, undefined)
+})
+
+test("si trae intención, la intención manda sobre la charla", () => {
+  // Un modelo confundido manda las dos. La consulta gana: el dato real es
+  // mejor respuesta que una frase.
+  const r = valida({
+    intencion: "por_cobrar",
+    parametros: {},
+    respuesta: "Creo que te deben bastante.",
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.intencion, "por_cobrar")
+  assert.equal(r.charla, undefined)
+})
+
+test("una charla vacía no cuenta como respuesta", () => {
+  for (const v of ["", "   ", null]) {
+    assert.equal(valida({ respuesta: v }).ok, false, JSON.stringify(v))
+  }
+})
+
+/* --------------------------------------------- el detector de cifras -- */
+
+test("una charla que afirma cifras se RECHAZA", () => {
+  // Esto es lo que mata la confianza en un asistente de ERP: suena bien, es
+  // mentira, y se verifica siempre.
+  const inventos = [
+    "John Doe te debe $18,450.75 en tres facturas.",
+    "Tienes unos 12,000 en inventario.",
+    "El saldo es de 450.75",
+    "Son como 3.200 dólares",
+    "Te quedan 1450 unidades",
+    "Vale 120000 a costo",
+  ]
+  for (const s of inventos) {
+    const r = valida({ respuesta: s })
+    assert.equal(r.ok, false, s)
+    assert.equal(r.intencion, NO_ENTENDIDO, s)
+  }
+})
+
+test("pero una charla normal con números chicos SÍ pasa", () => {
+  // Si el filtro fuera «cualquier dígito», el asistente no podría ni decir
+  // cuántos tipos de consulta sabe hacer.
+  const buenas = [
+    "Puedo consultarte 11 cosas distintas: inventario, clientes y facturas.",
+    "Un SKU es el código de cada producto.",
+    "Claro, dime el folio y te lo busco.",
+    "El costeo aterrizado reparte los gastos entre la mercancía de la entrada.",
+  ]
+  for (const s of buenas) {
+    assert.equal(valida({ respuesta: s }).ok, true, s)
+  }
+})
+
+test("pareceCifra distingue un dato del negocio de un número cualquiera", () => {
+  // Lo que lo convierte en dato NO es el tamaño del número, es el sustantivo
+  // que lleva al lado: «11 cosas» es charla, «11 facturas» solo puede salir
+  // de la base.
+  for (const s of [
+    "$1,200",
+    "€50",
+    "1.234,56",
+    "18,450.75",
+    "450.75",
+    "2500 dólares",
+    "120000",
+    "3 facturas",
+    "te quedan 1450 unidades",
+    "facturas vencidas: 3",
+  ]) {
+    assert.equal(pareceCifra(s), true, s)
+  }
+  for (const s of [
+    "11 consultas",
+    "puedo hacer 11 cosas",
+    "el año 2026",
+    "sin números",
+    "PG-123",
+    "dame el folio",
+  ]) {
+    assert.equal(pareceCifra(s), false, s)
+  }
+})
+
+test("una charla entra al hilo con su propio formato", () => {
+  const m = construyeMensajes(
+    [{ pregunta: "¿qué es un SKU?", respuesta: "El código de cada producto." }],
+    "¿y cuántos tengo?"
+  )
+  assert.deepEqual(m.map((x) => x.role), ["system", "user", "assistant", "user"])
+  assert.deepEqual(JSON.parse(m[2].content), { respuesta: "El código de cada producto." })
 })

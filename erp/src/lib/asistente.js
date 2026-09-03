@@ -1,6 +1,6 @@
 import { supabase, rpc } from "./supabase"
-import { construyePrompt, valida, NO_ENTENDIDO } from "./intenciones"
-import { ejecuta, sinEntender } from "./consultas"
+import { construyePrompt, construyeMensajes, valida, NO_ENTENDIDO } from "./intenciones"
+import { ejecuta, sinEntender, charla } from "./consultas"
 
 /**
  * El hilo completo de una pregunta.
@@ -79,14 +79,23 @@ async function detalleDelError(error) {
  * @returns {{resultado, intencion, cupo}}  respondida
  *        | {{error, cupo?, noEntendido?}}  no se pudo
  */
-export async function pregunta(texto, contexto = {}) {
+export async function pregunta(texto, contexto = {}, historial = []) {
   const limpio = String(texto ?? "").trim()
   if (!limpio) return { error: "Escribe una pregunta." }
 
   let data, error
   try {
     ;({ data, error } = await supabase.functions.invoke("asistente", {
-      body: { prompt: construyePrompt(), pregunta: limpio },
+      body: {
+        // `mensajes` es el hilo completo y es lo que usa la función nueva.
+        mensajes: construyeMensajes(historial, limpio),
+        // `prompt` + `pregunta` es el contrato VIEJO, y se sigue mandando a
+        // propósito: si la función desplegada todavía es la anterior, esto
+        // sigue funcionando como un solo turno en vez de romperse. La
+        // conversación se activa sola al redesplegar, sin tocar el navegador.
+        prompt: construyePrompt(),
+        pregunta: limpio,
+      },
     }))
   } catch (e) {
     return { error: `No se pudo contactar al asistente: ${e.message}` }
@@ -121,8 +130,19 @@ export async function pregunta(texto, contexto = {}) {
     }
   }
 
-  // La aduana. A partir de aquí nada viene del modelo salvo QUÉ preguntar.
+  // La aduana. A partir de aquí nada viene del modelo salvo QUÉ preguntar —
+  // o, en la vía conversacional, un texto que ya pasó por el detector de
+  // cifras y no afirma ningún número.
   const v = valida(data?.texto, contexto)
+
+  if (v.ok && v.charla) {
+    // Charla: no hay consulta que correr ni contexto de entidades que
+    // actualizar. Se devuelve `respuesta` para que el turno sí entre al hilo:
+    // sin eso, preguntar algo general y luego repreguntar sobre lo mismo
+    // dejaría al modelo sin la mitad de la conversación.
+    return { resultado: charla(v.charla), respuesta: v.charla, cupo: data?.cupo }
+  }
+
   if (!v.ok) {
     // «No entendí» NO es un error: es una respuesta, y tiene que ofrecer una
     // salida. Un callejón sin salida hace que la persona cierre la pantalla y

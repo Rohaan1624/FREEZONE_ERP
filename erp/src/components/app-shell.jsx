@@ -47,8 +47,16 @@ export function AppShell() {
     .join("")
 
   return (
-    <div className="min-h-svh bg-paper px-6 pt-4 pb-8 text-ink print:bg-white print:p-0">
-      <div className="mx-auto flex max-w-[1460px] flex-col gap-4">
+    /* Alto fijo con el contenido desplazándose adentro, no la ventana entera.
+       El encabezado y el riel se quedan siempre a la vista —que es lo que uno
+       espera de un ERP— y, sobre todo, deja que una pantalla pida el alto
+       completo: sin esto el asistente no puede tener su caja de texto abajo,
+       porque la página crece con cada respuesta y el input se va al fondo.
+
+       Los `print:` no son cosmética: sin ellos una factura de tres páginas se
+       imprimiría recortada al alto de la pantalla. */
+    <div className="flex h-svh flex-col overflow-hidden bg-paper px-6 pt-4 pb-8 text-ink print:block print:h-auto print:overflow-visible print:bg-white print:p-0">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1460px] flex-1 flex-col gap-4 print:min-h-0 print:block">
         <header className="flex items-center gap-4 print:hidden">
           <div className="flex items-center gap-3">
             {empresa?.logo_url ? (
@@ -112,7 +120,12 @@ export function AppShell() {
           ))}
         </nav>
 
-        <Outlet context={{ empresa, recargarEmpresa: setEmpresa }} />
+        {/* La región que se desplaza. `min-h-0` es obligatorio: sin él un hijo
+            flex se niega a encogerse por debajo de su contenido y el scroll se
+            va a la ventana, que es justo lo que estamos evitando. */}
+        <div className="min-h-0 flex-1 overflow-y-auto print:h-auto print:overflow-visible">
+          <Outlet context={{ empresa, recargarEmpresa: setEmpresa }} />
+        </div>
       </div>
     </div>
   )

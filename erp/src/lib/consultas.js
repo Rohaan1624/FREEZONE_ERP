@@ -1,7 +1,7 @@
 import { supabase, rpc } from "./supabase"
 import { usd, n0, fecha } from "./format"
 import { sumar } from "./dinero"
-import { filtroTexto } from "./lista"
+import { filtrosBusqueda } from "./lista"
 import { argsRpc, desdeRpc } from "./resumen"
 import { INTENCIONES, SOCIALES } from "./intenciones"
 
@@ -87,42 +87,84 @@ const revienta = ({ data, error }) => {
   return data ?? []
 }
 
-/**
- * Encuentra UN producto por SKU o por descripción.
- *
- * El SKU viene del modelo copiando lo que escribió el usuario, así que puede
- * ser parcial («la esponja») o traer comodines. filtroTexto() los escapa: sin
- * eso, preguntar por «100%» traería medio catálogo.
- */
-async function buscaProducto(texto) {
-  let q = supabase.from("product").select("*").limit(5)
-  const f = filtroTexto(texto, ["sku", "description"])
-  if (f) q = q.or(f)
-  const filas = revienta(await q)
+/** Cuántos productos se traen de una búsqueda por texto. */
+const TOPE_BUSQUEDA = 50
 
+/**
+ * Trae los productos cuyo SKU o descripción contiene el texto.
+ *
+ * El término viene del modelo copiando lo que escribió el usuario, así que
+ * puede ser un SKU, un nombre, un trozo de nombre («la esponja») o un plural
+ * («los peines»), y puede traer comodines. De eso se encarga
+ * filtrosBusqueda(): singulariza, tolera tildes y escapa el % y el _ —sin lo
+ * último, preguntar por «100%» traería medio catálogo.
+ */
+async function buscaProductos(texto, tope = TOPE_BUSQUEDA) {
+  let q = supabase.from("product").select("*").order("sku").limit(tope)
+  // Un .or() por palabra: PostgREST los combina con AND, así «peines de
+  // madera» exige «pein» Y «madera» en cualquier orden.
+  for (const f of filtrosBusqueda(texto, ["sku", "description"])) q = q.or(f)
+  return revienta(await q)
+}
+
+/**
+ * Resuelve UN producto, o devuelve los candidatos.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * VARIOS RESULTADOS NO SON UN ERROR
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Antes esto contestaba «coincide con 4 productos, sé más específico» y ahí se
+ * acababa la conversación: la persona ya había dicho lo único que sabía decir
+ * («peine»), así que «sé más específico» le pide justo lo que no tiene. Y era
+ * el camino normal, no un caso raro — cualquier nombre de familia de producto
+ * coincide con varios.
+ *
+ * Ahora devuelve `varios` y quien llama enseña la lista. Pedir un nombre y
+ * recibir los cuatro que coinciden ES la respuesta, y de paso deja a la vista
+ * el SKU con el que preguntar por uno.
+ */
+async function resuelveProducto(texto) {
+  const filas = await buscaProductos(texto)
   if (!filas.length) return { error: `No encontré ningún producto que coincida con «${texto}».` }
-  // Coincidencia exacta de SKU gana sobre cualquier parcial.
-  const exacto = filas.find((p) => p.sku.toLowerCase() === texto.trim().toLowerCase())
+
+  const clave = String(texto ?? "").trim().toLowerCase()
+  // Una coincidencia exacta gana sobre cualquier parcial: quien escribe el SKU
+  // completo, o el nombre entero, ya fue específico.
+  const exacto =
+    filas.find((p) => p.sku?.toLowerCase() === clave) ??
+    filas.find((p) => p.description?.toLowerCase() === clave)
   if (exacto) return { producto: exacto }
-  if (filas.length > 1)
-    return {
-      ambiguo: filas,
-      error: `«${texto}» coincide con ${filas.length} productos. Sé más específico.`,
-    }
+
+  if (filas.length > 1) return { varios: filas }
   return { producto: filas[0] }
 }
 
-async function buscaCliente(texto) {
-  let q = supabase.from("client").select("*").limit(5)
-  const f = filtroTexto(texto, ["name", "identifier"])
-  if (f) q = q.or(f)
+/** Las columnas con que se pinta una lista de productos. */
+const COLS_PRODUCTOS = [
+  { k: "sku", etiqueta: "SKU" },
+  { k: "description", etiqueta: "Producto" },
+  { k: "existencia", etiqueta: "Existencia", align: "right" },
+  { k: "precio", etiqueta: "Precio", align: "right" },
+]
+
+const filaProducto = (p) => ({
+  ...p,
+  description: p.description || "—",
+  existencia: `${n0(p.stock)} ${p.unit ?? "PZA"}`,
+  precio: p.sale_price == null ? "—" : usd(p.sale_price),
+})
+
+/** Mismo trato que los productos: varios candidatos se enseñan, no se rechazan. */
+async function resuelveCliente(texto) {
+  let q = supabase.from("client").select("*").order("name").limit(TOPE_BUSQUEDA)
+  for (const f of filtrosBusqueda(texto, ["name", "identifier"])) q = q.or(f)
   const filas = revienta(await q)
 
   if (!filas.length) return { error: `No encontré ningún cliente que coincida con «${texto}».` }
-  const exacto = filas.find((c) => c.name.toLowerCase() === texto.trim().toLowerCase())
+  const clave = String(texto ?? "").trim().toLowerCase()
+  const exacto = filas.find((c) => c.name?.toLowerCase() === clave)
   if (exacto) return { cliente: exacto }
-  if (filas.length > 1)
-    return { error: `«${texto}» coincide con ${filas.length} clientes. Sé más específico.` }
+  if (filas.length > 1) return { varios: filas }
   return { cliente: filas[0] }
 }
 
@@ -139,6 +181,16 @@ function muestrario(cuantas) {
   return salida
 }
 
+/**
+ * Una respuesta conversacional del modelo, sin consulta detrás.
+ *
+ * No lleva sugerencias: el modelo ya dijo algo pertinente, y colgarle debajo
+ * cuatro ejemplos convierte una charla normal en un formulario.
+ */
+export function charla(texto) {
+  return mensaje(texto)
+}
+
 /** Lo que se contesta cuando la pregunta no cae en el catálogo. */
 export function sinEntender() {
   return mensaje(
@@ -150,9 +202,39 @@ export function sinEntender() {
 /* ------------------------------------------------------------ ejecutores -- */
 
 const EJECUTORES = {
-  async existencia_sku({ sku }) {
-    const { producto: p, error } = await buscaProducto(sku)
+  async buscar_productos({ producto }) {
+    const filas = await buscaProductos(producto)
+    if (!filas.length)
+      return {
+        error: `No encontré ningún producto que coincida con «${producto}».`,
+      }
+    const enCero = filas.filter((p) => Number(p.stock) === 0).length
+    return tabla(
+      `${plural(filas.length, "producto coincide", "productos coinciden")} con «${producto}»` +
+        (enCero === 0
+          ? "."
+          : ` — ${plural(enCero, "está agotado", "están agotados")}.`) +
+        (filas.length === TOPE_BUSQUEDA ? " Te enseño los primeros 50." : ""),
+      `Productos con «${producto}»`,
+      COLS_PRODUCTOS,
+      filas.map(filaProducto),
+      { enlace: "/productos" }
+    )
+  },
+
+  async existencia({ producto }) {
+    const { producto: p, varios, error } = await resuelveProducto(producto)
     if (error) return { error }
+    // Varios candidatos: se enseñan en vez de pedir que «sea más específico».
+    // La lista trae el SKU, así que el siguiente turno ya puede señalar uno.
+    if (varios)
+      return tabla(
+        `Hay ${plural(varios.length, "producto que coincide", "productos que coinciden")} con «${producto}». Dime cuál, o pregúntame por su SKU.`,
+        `Productos con «${producto}»`,
+        COLS_PRODUCTOS,
+        varios.map(filaProducto),
+        { enlace: "/productos" }
+      )
     const agotado = Number(p.stock) === 0
     return ficha(
       agotado
@@ -189,9 +271,17 @@ const EJECUTORES = {
     )
   },
 
-  async movimientos_sku({ sku }) {
-    const { producto: p, error } = await buscaProducto(sku)
+  async movimientos({ producto }) {
+    const { producto: p, varios, error } = await resuelveProducto(producto)
     if (error) return { error }
+    if (varios)
+      return tabla(
+        `«${producto}» coincide con ${plural(varios.length, "producto", "productos")}. Dime de cuál quieres los movimientos.`,
+        `Productos con «${producto}»`,
+        COLS_PRODUCTOS,
+        varios.map(filaProducto),
+        { enlace: "/productos" }
+      )
     const movs = revienta(
       await supabase
         .from("stock_movement")
@@ -236,8 +326,24 @@ const EJECUTORES = {
   },
 
   async saldo_cliente({ cliente }) {
-    const { cliente: c, error } = await buscaCliente(cliente)
+    const { cliente: c, varios, error } = await resuelveCliente(cliente)
     if (error) return { error }
+    if (varios)
+      return tabla(
+        `«${cliente}» coincide con ${plural(varios.length, "cliente", "clientes")}. Dime cuál.`,
+        `Clientes con «${cliente}»`,
+        [
+          { k: "name", etiqueta: "Cliente" },
+          { k: "identifier", etiqueta: "RUC o cédula" },
+          { k: "saldoTxt", etiqueta: "Saldo", align: "right" },
+        ],
+        varios.map((x) => ({
+          ...x,
+          identifier: x.identifier || "—",
+          saldoTxt: usd(x.balance),
+        })),
+        { enlace: "/clientes" }
+      )
     const abiertas = revienta(
       await supabase
         .from("invoice_listado")
@@ -304,17 +410,76 @@ const EJECUTORES = {
     )
   },
 
+  async ultimas_facturas() {
+    const filas = revienta(
+      await supabase
+        .from("invoice_listado")
+        .select("invoice_num,client_name,date_created,total,saldo,estado")
+        // Un borrador no se ha emitido: no cuenta como «lo último que facturé».
+        .neq("status", "draft")
+        .order("date_created", { ascending: false })
+        .order("invoice_num", { ascending: false })
+        .limit(15)
+    )
+    const facturado = sumar(filas, (f) => f.total)
+    return tabla(
+      filas.length === 0
+        ? "Todavía no has emitido ninguna factura."
+        : `Tus ${plural(filas.length, "última factura", "últimas facturas")} suman ${usd(facturado)}. La más reciente es la ${filas[0].invoice_num}, de ${filas[0].client_name ?? "un cliente sin nombre"}, del ${fecha(filas[0].date_created)}.`,
+      "Últimas facturas",
+      [
+        { k: "invoice_num", etiqueta: "Folio" },
+        { k: "client_name", etiqueta: "Cliente" },
+        { k: "emitida", etiqueta: "Emitida", align: "right" },
+        { k: "totalTxt", etiqueta: "Total", align: "right" },
+        { k: "estado", etiqueta: "Estado" },
+      ],
+      filas.map((f) => ({
+        ...f,
+        client_name: f.client_name ?? "—",
+        emitida: fecha(f.date_created),
+        totalTxt: usd(f.total),
+      })),
+      { vacio: "No has emitido facturas.", enlace: "/facturas" }
+    )
+  },
+
   async factura({ folio }) {
-    let q = supabase.from("invoice_listado").select("*").limit(5)
-    const f = filtroTexto(folio, ["invoice_num", "client_name"])
-    if (f) q = q.or(f)
+    let q = supabase
+      .from("invoice_listado")
+      .select("*")
+      .order("date_created", { ascending: false })
+      .limit(TOPE_BUSQUEDA)
+    for (const f of filtrosBusqueda(folio, ["invoice_num", "client_name"])) q = q.or(f)
     const filas = revienta(await q)
 
     if (!filas.length) return { error: `No encontré ninguna factura «${folio}».` }
-    if (filas.length > 1)
-      return { error: `«${folio}» coincide con ${filas.length} facturas. Dame el folio completo.` }
 
-    const i = filas[0]
+    const clave = String(folio ?? "").trim().toLowerCase()
+    const exacta = filas.find((x) => x.invoice_num?.toLowerCase() === clave)
+    // Igual que con productos y clientes: varias coincidencias se enseñan. Aquí
+    // el caso normal es preguntar por un cliente en vez de por un folio.
+    if (!exacta && filas.length > 1)
+      return tabla(
+        `«${folio}» coincide con ${plural(filas.length, "factura", "facturas")}. Dime el folio de la que quieres.`,
+        `Facturas con «${folio}»`,
+        [
+          { k: "invoice_num", etiqueta: "Folio" },
+          { k: "client_name", etiqueta: "Cliente" },
+          { k: "emitida", etiqueta: "Emitida", align: "right" },
+          { k: "totalTxt", etiqueta: "Total", align: "right" },
+          { k: "estado", etiqueta: "Estado" },
+        ],
+        filas.map((x) => ({
+          ...x,
+          client_name: x.client_name ?? "—",
+          emitida: fecha(x.date_created),
+          totalTxt: usd(x.total),
+        })),
+        { enlace: "/facturas" }
+      )
+
+    const i = exacta ?? filas[0]
     return ficha(
       `${i.invoice_num} es de ${i.client_name ?? "un cliente sin nombre"} por ${usd(i.total)}. ` +
         (i.estado === "Pagada"

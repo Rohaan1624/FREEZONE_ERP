@@ -40,20 +40,41 @@ const PERIODOS = ["anio", "mes", "semana"]
  * con vista previa y confirmación.
  */
 export const INTENCIONES = {
-  existencia_sku: {
-    descripcion: "Cuántas unidades hay de un producto, con su costo y precio.",
-    ejemplos: ["¿cuántos ABC-100 tengo?", "existencia de la esponja doble", "¿hay stock de DEF-200?"],
-    params: { sku: { tipo: "texto", requerido: true } },
+  // OJO con el orden de estas dos. `buscar_productos` va ANTES que `existencia`
+  // a propósito: un modelo chico se agarra de la primera que le encaja, y
+  // «¿qué peines tengo?» encaja en las dos. Si `existencia` va primero se lleva
+  // las preguntas en plural, resuelve a varios productos y muere en «sé más
+  // específico» — que es exactamente el callejón sin salida que había.
+  buscar_productos: {
+    descripcion:
+      "Lista los productos cuyo nombre o SKU contiene un texto. Para preguntas en PLURAL o de catálogo: varios productos a la vez.",
+    ejemplos: [
+      "lista todos los peines",
+      "¿qué gorras tengo?",
+      "productos que digan esponja",
+      "enséñame los cables",
+    ],
+    params: { producto: { tipo: "texto", requerido: true } },
+  },
+  existencia: {
+    descripcion:
+      "Cuántas unidades hay de UN producto concreto, con su costo y precio. El producto se nombra por SKU o por su nombre.",
+    ejemplos: [
+      "¿cuántos ABC-100 tengo?",
+      "existencia de la esponja doble",
+      "¿hay stock del peine de madera?",
+    ],
+    params: { producto: { tipo: "texto", requerido: true } },
   },
   sin_existencia: {
     descripcion: "Qué productos están agotados (existencia en cero).",
     ejemplos: ["¿qué se me acabó?", "productos agotados", "¿qué está en cero?"],
     params: {},
   },
-  movimientos_sku: {
+  movimientos: {
     descripcion: "El historial de entradas y salidas de un producto.",
-    ejemplos: ["movimientos de ABC-100", "¿por qué bajó el stock de DEF-200?"],
-    params: { sku: { tipo: "texto", requerido: true } },
+    ejemplos: ["movimientos de ABC-100", "¿por qué bajó el stock de la esponja?"],
+    params: { producto: { tipo: "texto", requerido: true } },
   },
   valor_inventario: {
     descripcion: "Cuánto vale todo el inventario valuado a costo.",
@@ -71,8 +92,19 @@ export const INTENCIONES = {
     ejemplos: ["¿qué facturas están vencidas?", "¿a quién le tengo que cobrar?", "cartera vencida"],
     params: {},
   },
+  ultimas_facturas: {
+    descripcion:
+      "Las facturas más recientes, de todos los clientes, de la más nueva a la más vieja. Para «las últimas», «las recientes», «qué he facturado».",
+    ejemplos: [
+      "muéstrame las últimas facturas",
+      "las facturas más recientes",
+      "¿qué facturé últimamente?",
+      "dame las últimas 10 facturas",
+    ],
+    params: {},
+  },
   factura: {
-    descripcion: "El detalle de una factura por su número de folio.",
+    descripcion: "El detalle de UNA factura por su número de folio.",
     ejemplos: ["muéstrame la INV-00042", "detalle de la factura 891"],
     params: { folio: { tipo: "texto", requerido: true } },
   },
@@ -154,21 +186,98 @@ export function construyePrompt() {
     })
     .join("\n")
 
-  return `Eres el traductor de un ERP. Conviertes la pregunta del usuario en UNA intención del catálogo.
+  return `Eres el asistente del ERP de una empresa que importa y reexporta mercancía en la Zona Libre de Colón, Panamá. Hablas español, en tono cercano y directo, de tú.
 
-NO CONTESTAS LA PREGUNTA. No inventas cifras, nombres ni fechas: la aplicación consulta la base de datos y muestra el resultado. Tu única salida es JSON.
+Tienes DOS maneras de responder, y siempre devuelves UN objeto JSON:
 
-CATÁLOGO
+1. CONSULTAR EL SISTEMA — cuando hace falta un dato real: inventario, productos, clientes, saldos, facturas o compras.
+   {"intencion":"<del catálogo>","parametros":{...}}
+   La aplicación corre la consulta y enseña el resultado. TÚ NO VES ESOS DATOS y no tienes que redactarlos.
+
+2. CONVERSAR — para todo lo demás: preguntas sobre ti, sobre cómo funciona el ERP o el negocio, dudas de vocabulario, o charla normal.
+   {"respuesta":"lo que le contestas, en español, breve y natural"}
+
+ANTE LA DUDA, CONSULTA. Es mejor enseñar un dato de más que contestar de memoria algo que estaba en la base.
+
+CATÁLOGO DE CONSULTAS
 ${lista}
 
 REGLAS
 - Devuelve SOLO un objeto JSON, sin explicación y sin bloques de código.
-- Formato: {"intencion":"<nombre>","parametros":{...}}
-- Si la pregunta no encaja en ninguna, devuelve {"intencion":"${NO_ENTENDIDO}","parametros":{}}
+- NUNCA escribas cifras del negocio en "respuesta": ni montos, ni existencias, ni saldos, ni conteos de facturas. No los conoces y no puedes adivinarlos. Si te los piden, usa una intención.
+- Si te preguntan por datos que el catálogo no cubre, dilo en "respuesta" en vez de inventarlos.
 - No inventes parámetros que no estén declarados.
 - El parámetro "periodo" solo acepta: ${PERIODOS.join(", ")}.
 - Copia los SKU, folios y nombres TAL CUAL los escribió el usuario; no los corrijas ni los completes.
-- Si la pregunta es un SEGUIMIENTO y no repite el SKU, el cliente o el folio («¿y sus movimientos?», «¿cuánto le debo?»), omite ese parámetro: la aplicación sabe de qué se venía hablando.`
+
+SOBRE LOS PRODUCTOS
+- Un NOMBRE vale igual que un SKU. «el peine de madera» y «PG-123» van los dos en "producto", tal cual. Nunca respondas ${NO_ENTENDIDO} solo porque el usuario no dio un código.
+- PLURAL o catálogo («todos los peines», «qué gorras tengo», «lista de cables») → buscar_productos.
+- UN producto concreto («¿cuántos peines de madera hay?», «existencia de PG-123») → existencia.
+
+LA CONVERSACIÓN
+- Vienes leyendo el hilo: tus turnos anteriores son el JSON que la aplicación ya ejecutó. Úsalos para saber de qué se está hablando.
+- Si el turno actual es un SEGUIMIENTO y no repite el producto, el cliente o el folio («¿y sus movimientos?», «¿cuánto me debe?», «¿y de ese?»), OMITE ese parámetro: la aplicación hereda el del turno anterior.
+- Si el usuario cambia de tema, no arrastres el parámetro viejo: nómbralo de nuevo.`
+}
+
+/* ------------------------------------------------------------- el hilo -- */
+
+/**
+ * Cuántos turnos previos se le mandan al modelo.
+ *
+ * Seis alcanza para cualquier hilo de seguimientos real («¿y sus
+ * movimientos?» → «¿y el costo?» → «¿y de la gorra?») y mantiene el prompt
+ * en un tamaño que el plan gratuito contesta rápido. Más historia no mejora
+ * la clasificación: la empeora, porque el modelo empieza a agarrarse de
+ * referentes viejos que ya nadie mencionó.
+ */
+export const TURNOS_DE_CONTEXTO = 6
+
+/**
+ * Arma los mensajes para el modelo: sistema + hilo + la pregunta nueva.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * EL TURNO DEL ASISTENTE ES EL JSON QUE SE EJECUTÓ, NO LO QUE SE PINTÓ
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Esto es lo que hace que la conversación funcione sin romper la regla de que
+ * el modelo nunca toca una cifra. En el hilo no van los resultados —ni las
+ * tablas ni las frases con dinero—, va exactamente `{"intencion":…}`.
+ *
+ * Tiene dos ventajas sobre mandarle el texto de las respuestas:
+ *   · No hay un solo número en su ventana, así que no hay número que pueda
+ *     repetir mal en un turno siguiente.
+ *   · Cada turno previo es un ejemplo más del formato exacto que se le pide,
+ *     que es justo lo que más le cuesta a un modelo chico.
+ *
+ * @param historial [{pregunta, intencion, parametros}] en orden cronológico
+ * @param pregunta  el turno nuevo
+ */
+export function construyeMensajes(historial = [], pregunta) {
+  const mensajes = [{ role: "system", content: construyePrompt() }]
+
+  // Solo los turnos que salieron bien: una consulta que se ejecutó o una
+  // charla que se pintó. Uno que falló no enseña nada, y lo que enseñaría es
+  // justo lo que no hay que repetir.
+  const utiles = (Array.isArray(historial) ? historial : []).filter(
+    (t) => t && t.pregunta && (t.intencion || t.respuesta)
+  )
+
+  for (const t of utiles.slice(-TURNOS_DE_CONTEXTO)) {
+    mensajes.push({ role: "user", content: String(t.pregunta) })
+    mensajes.push({
+      role: "assistant",
+      // Cada turno se devuelve en el MISMO formato en que se pidió, así que el
+      // hilo va enseñando los dos caminos con ejemplos propios: cuándo se
+      // consultó y cuándo se conversó.
+      content: t.intencion
+        ? JSON.stringify({ intencion: t.intencion, parametros: t.parametros ?? {} })
+        : JSON.stringify({ respuesta: String(t.respuesta) }),
+    })
+  }
+
+  mensajes.push({ role: "user", content: String(pregunta ?? "") })
+  return mensajes
 }
 
 /* -------------------------------------------------------------- validador -- */
@@ -207,16 +316,63 @@ function extraeJSON(texto) {
 const texto = (v) => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim())
 
 /**
+ * ¿Este texto está afirmando una cifra del negocio?
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA RED DE SEGURIDAD DE LA VÍA CONVERSACIONAL
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Toda la confianza en este asistente se apoya en que las cifras salen de
+ * Postgres y no del modelo. Dejarlo conversar abre la única rendija por donde
+ * eso se puede romper: que conteste «me parece que John Doe te debe unos
+ * $18,000» de memoria. Suena bien, es mentira, y en un ERP se verifica siempre
+ * — la primera vez que pasa, nadie vuelve a creerle al asistente.
+ *
+ * El prompt ya se lo prohíbe. Esto es lo que pasa cuando no obedece, que es la
+ * mitad de las veces con un modelo de plan gratuito.
+ *
+ * Se buscan las formas en que se escribe DINERO o una cantidad contable, no
+ * cualquier dígito: «tengo 11 tipos de consulta» tiene que poder decirlo.
+ */
+// Las palabras que convierten un número cualquiera en un dato del negocio.
+// «11 cosas» es charla; «11 facturas» es un dato que solo puede salir de la
+// base. La diferencia no está en el número, está en el sustantivo.
+const SUSTANTIVOS =
+  "unidades?|piezas?|pzas?|bultos?|existencias?|facturas?|clientes?|productos?|skus?|saldos?|totales?|deuda|utilidad|margen|inventario"
+
+export function pareceCifra(s) {
+  const t = String(s ?? "")
+  return (
+    /[$€]\s*\d/.test(t) || // $1,200
+    /\d\s*(dólares|dolares|balboas|usd)\b/i.test(t) ||
+    /\b\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?\b/.test(t) || // 18,450.75 · 1.200
+    /\b\d+[.,]\d{2}\b/.test(t) || // 450.75
+    // Un número pegado a un sustantivo del negocio, en cualquier orden:
+    // «1450 unidades», «facturas: 3».
+    new RegExp(`\\b\\d+\\s*(${SUSTANTIVOS})\\b`, "i").test(t) ||
+    new RegExp(`\\b(${SUSTANTIVOS})\\b[^.]{0,12}?\\d`, "i").test(t) ||
+    // Un entero grande y suelto. Cinco dígitos y no cuatro, porque «el año
+    // 2026» es conversación perfectamente normal y no una cifra inventada.
+    /\b\d{5,}\b/.test(t)
+  )
+}
+
+/**
  * La aduana. Convierte lo que devolvió el modelo en algo ejecutable, o explica
  * por qué no.
  *
- * `contexto` son las entidades de las que se venía hablando ({sku, cliente,
- * folio, periodo}). Sirve para los seguimientos: «¿y sus movimientos?» llega
- * como movimientos_sku sin sku, y en vez de fallar se rellena con el último.
+ * `contexto` son las entidades de las que se venía hablando ({producto,
+ * cliente, folio, periodo}). Sirve para los seguimientos: «¿y sus
+ * movimientos?» llega como `movimientos` sin producto, y en vez de fallar se
+ * rellena con el último.
  *
  * EL CONTEXTO LO LLEVA LA APP, no el modelo. El modelo omite el dato; quién es
  * «sus» lo decide el historial real de la pantalla. Así un seguimiento no puede
- * terminar consultando un SKU que el modelo se inventó de una respuesta previa.
+ * terminar consultando un producto que el modelo se inventó de una respuesta
+ * previa.
+ *
+ * Esto CONVIVE con el hilo de construyeMensajes() y no se pisan: el hilo le
+ * dice al modelo de qué se habla para que sepa qué omitir; el contexto es
+ * quien pone el valor. El modelo nunca escribe el referente de un seguimiento.
  *
  * @returns {{ok: true, intencion, parametros}} | {{ok: false, motivo, intencion?}}
  */
@@ -225,7 +381,25 @@ export function valida(crudo, contexto = {}) {
   if (!o) return { ok: false, motivo: "El modelo no devolvió JSON." }
 
   const nombre = texto(o.intencion)
-  if (!nombre) return { ok: false, motivo: "La respuesta no trae intención." }
+
+  // ── La vía conversacional ──────────────────────────────────────────────────
+  // Sin intención pero con "respuesta", el modelo eligió charlar. Se acepta,
+  // PERO pasa por el detector de cifras: es el único punto de todo el sistema
+  // donde texto escrito por el modelo llega a la pantalla, así que es el único
+  // donde podría colarse un número inventado.
+  if (!nombre) {
+    const charla = texto(o.respuesta)
+    if (charla) {
+      if (pareceCifra(charla))
+        return {
+          ok: false,
+          motivo: "El modelo intentó dar cifras de memoria.",
+          intencion: NO_ENTENDIDO,
+        }
+      return { ok: true, charla }
+    }
+    return { ok: false, motivo: "La respuesta no trae intención." }
+  }
 
   if (nombre === NO_ENTENDIDO)
     return { ok: false, motivo: "No entendí la pregunta.", intencion: NO_ENTENDIDO }

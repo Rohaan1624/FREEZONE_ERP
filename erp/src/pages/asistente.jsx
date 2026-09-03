@@ -4,7 +4,7 @@ import { Sparkles, CircleAlert, ArrowRight, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { pregunta as preguntar, cupoActual } from "@/lib/asistente"
-import { ejemplosSugeridos } from "@/lib/intenciones"
+import { ejemplosSugeridos, NO_ENTENDIDO } from "@/lib/intenciones"
 
 /**
  * El asistente.
@@ -18,6 +18,14 @@ import { ejemplosSugeridos } from "@/lib/intenciones"
  * cuanto hay seguimientos —«¿y sus movimientos?»— deja de leerse: la respuesta
  * aparece encima de la pregunta que la motivó. Una conversación se lee hacia
  * abajo, así que la vista baja sola al llegar cada respuesta.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ES UNA PESTAÑA DE CHAT, NO UNA PÁGINA QUE CRECE
+ * ─────────────────────────────────────────────────────────────────────────────
+ * El hilo se desplaza dentro de su propia caja y la de escribir está pegada
+ * abajo. Cuando esto era una página normal, cada respuesta la alargaba y el
+ * input se iba quedando fuera de la vista: había que bajar a mano para hacer
+ * la siguiente pregunta, lo cual es lo contrario de una conversación.
  */
 
 /* ------------------------------------------------------------ resultados -- */
@@ -199,7 +207,7 @@ export default function Asistente() {
   const [ocupado, setOcupado] = React.useState(false)
   const [cupo, setCupo] = React.useState(null)
   const caja = React.useRef(null)
-  const fondo = React.useRef(null)
+  const rollo = React.useRef(null)
 
   React.useEffect(() => {
     let vivo = true
@@ -218,11 +226,25 @@ export default function Asistente() {
     setOcupado(true)
     setHilo((h) => [...h, { id, texto: q, cargando: true }])
 
-    const r = await preguntar(q, contexto)
+    // El hilo que ve el modelo: solo los turnos que SÍ se ejecutaron.
+    //
+    // Un «no entendí» se queda fuera a propósito. Metérselo en la historia es
+    // enseñarle con un ejemplo propio que rendirse es una respuesta aceptable,
+    // y los modelos chicos imitan el último patrón que ven.
+    const historial = hilo
+      .filter((e) => (e.intencion && e.intencion !== NO_ENTENDIDO) || e.respuesta)
+      .map((e) => ({
+        pregunta: e.texto,
+        intencion: e.intencion,
+        parametros: e.parametros,
+        respuesta: e.respuesta,
+      }))
+
+    const r = await preguntar(q, contexto, historial)
 
     setHilo((h) => h.map((e) => (e.id === id ? { ...e, cargando: false, ...r } : e)))
     // Solo lo que se consultó de verdad entra al contexto; un fallo no debe
-    // dejar un SKU a medio resolver que contamine la siguiente pregunta.
+    // dejar un producto a medio resolver que contamine la siguiente pregunta.
     if (r.parametros) setContexto((c) => ({ ...c, ...r.parametros }))
     // El cupo lo devuelve la propia respuesta, así que no hace falta volver a
     // preguntarlo — y preguntarlo tampoco costaría, pero es un viaje de más.
@@ -231,29 +253,26 @@ export default function Asistente() {
     caja.current?.focus()
   }
 
-  // Bajar al final cuando llega algo nuevo, que es el precio de leer hacia
-  // abajo — sin esto la respuesta aparece fuera de la vista.
+  // Bajar al final cuando llega algo nuevo. Se desplaza LA CAJA, no la ventana:
+  // scrollIntoView() en un contenedor con su propio scroll también empuja al
+  // padre y deja el encabezado de la app medio fuera de la vista.
   React.useEffect(() => {
-    fondo.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    const c = rollo.current
+    if (c) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" })
   }, [hilo])
 
   const sugerencias = ejemplosSugeridos(4)
+  const vacio = hilo.length === 0
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-[18px] text-neutral-600" />
-            <h3 className="m-0 text-[21px] font-semibold">Asistente</h3>
-            <span className="rounded-md border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600">
-              experimental
-            </span>
-          </div>
-          <div className="max-w-[70ch] text-[13px] text-neutral-700">
-            Pregunta en español sobre tu inventario, tus clientes y tus facturas. Las cifras salen
-            de la base de datos, no del modelo: no puede inventar un número.
-          </div>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-[18px] text-neutral-600" />
+          <h3 className="m-0 text-[21px] font-semibold">Asistente</h3>
+          <span className="rounded-md border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600">
+            experimental
+          </span>
         </div>
         {cupo && (
           <div className="ml-auto text-[13px] text-neutral-600 tabular-nums">
@@ -262,56 +281,86 @@ export default function Asistente() {
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          ref={caja}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && enviar()}
-          placeholder="Pregunta algo — o solo saluda"
-          disabled={ocupado}
-          autoFocus
-          className="entrada-texto h-10 flex-1 disabled:opacity-60"
-        />
-        <button
-          onClick={() => enviar()}
-          disabled={ocupado || !texto.trim()}
-          className="boton boton-ink h-10 disabled:opacity-40"
-        >
-          {ocupado ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          Preguntar
-        </button>
-      </div>
+      {/* La caja del chat: hilo que se desplaza arriba, escritura fija abajo. */}
+      <div className="registro flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* La conversación vive en una COLUMNA de ancho de lectura, centrada.
+            A todo lo ancho del ERP (1460px) un renglón de respuesta se estira
+            hasta hacerse ilegible, y la pantalla vacía quedaba como un párrafo
+            suelto en medio de un vacío enorme. */}
+        <div ref={rollo} className="min-h-0 flex-1 overflow-y-auto">
+          {vacio ? (
+            /* Centrada en los DOS ejes: si se ancla arriba, el hueco de abajo
+               es lo primero que se ve. */
+            <div className="grid h-full place-items-center px-5 py-8">
+              <div className="w-full max-w-[560px] text-center">
+                <div className="mx-auto grid size-11 place-items-center rounded-2xl bg-ink text-paper">
+                  <Sparkles className="size-5" />
+                </div>
+                <h4 className="mt-4 mb-0 text-[20px] font-semibold">
+                  Pregúntame por tu operación
+                </h4>
+                <p className="mx-auto mt-1.5 mb-0 max-w-[46ch] text-[14px] leading-snug text-balance text-neutral-700">
+                  Inventario, clientes y facturas, en español. Las cifras salen de la base de
+                  datos: no puedo inventar un número.
+                </p>
 
-      {hilo.length === 0 && (
-        <div className="registro p-6">
-          <div className="rotulo">Prueba con</div>
-          <div className="mt-2 flex flex-col items-start gap-1.5">
-            {sugerencias.map((s) => (
-              <button
-                key={s}
-                onClick={() => enviar(s)}
-                className="text-left text-[14px] underline decoration-neutral-300 underline-offset-4 hover:decoration-ink"
-              >
-                {s}
-              </button>
-            ))}
+                <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                  {sugerencias.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => enviar(s)}
+                      className="casilla bg-paper text-left text-[13.5px] transition-colors hover:border-ink"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="mx-auto mt-6 mb-0 max-w-[52ch] text-[12px] leading-snug text-balance text-neutral-600">
+                  Por ahora solo consulta: no crea ni modifica nada. Si una pregunta no cae en lo
+                  que sabe, lo dice en vez de adivinar.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto flex max-w-[860px] flex-col gap-5 px-4 py-5 sm:px-6">
+              {hilo.map((e) => (
+                <Respuesta key={e.id} entrada={e} onSugerencia={enviar} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Alineada con la columna de la conversación, no con el ancho del
+            ERP: una caja de 1460px debajo de respuestas de 860 se lee como dos
+            piezas distintas pegadas. */}
+        <div className="border-t border-neutral-300 bg-paper px-4 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-[860px] items-center gap-2">
+            <input
+              ref={caja}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && enviar()}
+              placeholder={vacio ? "Pregunta algo — o solo saluda" : "Sigue preguntando…"}
+              disabled={ocupado}
+              autoFocus
+              className="entrada-texto h-10 flex-1 disabled:opacity-60"
+            />
+            <button
+              onClick={() => enviar()}
+              disabled={ocupado || !texto.trim()}
+              className="boton boton-ink h-10 disabled:opacity-40"
+            >
+              {ocupado ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              Preguntar
+            </button>
           </div>
-          <p className="mt-4 mb-0 max-w-[70ch] text-[12px] text-neutral-600">
-            Por ahora solo consulta: no crea ni modifica nada. Si una pregunta no cae en lo que
-            sabe, lo dice en vez de adivinar.
-          </p>
         </div>
-      )}
-
-      {hilo.length > 0 && (
-        <div className="flex flex-col gap-5">
-          {hilo.map((e) => (
-            <Respuesta key={e.id} entrada={e} onSugerencia={enviar} />
-          ))}
-          <div ref={fondo} />
-        </div>
-      )}
+      </div>
     </div>
   )
 }
