@@ -49,7 +49,7 @@ export const INTENCIONES = {
     descripcion:
       "Lista los productos cuyo nombre o SKU contiene un texto. Para preguntas en PLURAL o de catálogo: varios productos a la vez.",
     ejemplos: [
-      "lista todos los peines",
+      "lista todos cuchillos",
       "¿qué gorras tengo?",
       "productos que digan esponja",
       "enséñame los cables",
@@ -176,7 +176,7 @@ export const INTENCIONES = {
   },
   crear_factura: {
     descripcion:
-      "Prepara una factura para un cliente con sus líneas. Se guarda como BORRADOR para que la persona la revise y la emita.",
+      "Prepara una factura NUEVA para un cliente con sus líneas. Se guarda como BORRADOR para que la persona la revise y la emita.",
     ejemplos: [
       "hazle una factura a John Doe de 10 peines a 3.50",
       "factura a Distribuidora Ejemplo: 20 gorras y 5 cables",
@@ -186,6 +186,26 @@ export const INTENCIONES = {
     params: {
       cliente: { tipo: "texto", requerido: true },
       lineas: { tipo: "lineas", requerido: true },
+      notas: { tipo: "texto", requerido: false, porDefecto: "" },
+    },
+  },
+  editar_factura: {
+    descripcion:
+      "Cambia una factura que YA existe, por su folio: le agrega líneas, se las reemplaza, o le cambia las notas.",
+    ejemplos: [
+      "agrégale 5 gorras a la INV-00042",
+      "a la factura INV-00108 súmale 2 cables HDMI a 6.50",
+      "cambia las líneas de la INV-00033 por 50 PG-100",
+      "ponle una nota a la INV-00077",
+    ],
+    escribe: true,
+    params: {
+      folio: { tipo: "texto", requerido: true },
+      lineas: { tipo: "lineas", requerido: false },
+      // «agregar» por defecto, y es una decisión de seguridad: si el modelo
+      // se equivoca de modo, agregar de más se ve en la vista previa y se
+      // cancela; reemplazar por error borra renglones que nadie quería tocar.
+      modo: { tipo: "texto", requerido: false, porDefecto: "agregar" },
       notas: { tipo: "texto", requerido: false, porDefecto: "" },
     },
   },
@@ -316,6 +336,30 @@ LA CONVERSACIÓN
 export const TURNOS_DE_CONTEXTO = 6
 
 /**
+ * Cuántos caracteres puede pesar el hilo entero.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUÉ RECORTA EL NAVEGADOR Y NO EL SERVIDOR
+ * ─────────────────────────────────────────────────────────────────────────────
+ * La función tiene su propio tope (MAX_HILO) y devuelve 413 al pasarlo. Ese
+ * tope es una DEFENSA, no un mecanismo: existe para que nadie use la función
+ * como proxy de LLM, y su respuesta correcta a un abuso es un error seco.
+ *
+ * Pero seis turnos de una factura de cuarenta renglones pasan de 30.000
+ * caracteres sin que nadie esté abusando de nada. Si el recorte no ocurriera
+ * aquí, esa conversación perfectamente normal moriría con «la consulta es
+ * demasiado larga» y sin manera de seguir: la persona no puede acortar un
+ * historial que no ve.
+ *
+ * Así que aquí se tira historia vieja hasta que quepa, y el tope del servidor
+ * queda de red de seguridad para lo que sí es abuso. El número va por debajo
+ * del suyo a propósito: los dos viven en repos distintos —uno en el bundle,
+ * otro en Deno— y no pueden compartir la constante, así que el margen es lo
+ * que evita que un desajuste de unos bytes se convierta en un 413.
+ */
+export const PRESUPUESTO_HILO = 15000
+
+/**
  * Arma los mensajes para el modelo: sistema + hilo + la pregunta nueva.
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -334,8 +378,9 @@ export const TURNOS_DE_CONTEXTO = 6
  * @param historial [{pregunta, intencion, parametros}] en orden cronológico
  * @param pregunta  el turno nuevo
  */
-export function construyeMensajes(historial = [], pregunta) {
-  const mensajes = [{ role: "system", content: construyePrompt() }]
+export function construyeMensajes(historial = [], pregunta, presupuesto = PRESUPUESTO_HILO) {
+  const sistema = { role: "system", content: construyePrompt() }
+  const actual = { role: "user", content: String(pregunta ?? "") }
 
   // Solo los turnos que salieron bien: una consulta que se ejecutó o una
   // charla que se pintó. Uno que falló no enseña nada, y lo que enseñaría es
@@ -344,9 +389,9 @@ export function construyeMensajes(historial = [], pregunta) {
     (t) => t && t.pregunta && (t.intencion || t.respuesta)
   )
 
-  for (const t of utiles.slice(-TURNOS_DE_CONTEXTO)) {
-    mensajes.push({ role: "user", content: String(t.pregunta) })
-    mensajes.push({
+  const pares = utiles.slice(-TURNOS_DE_CONTEXTO).map((t) => [
+    { role: "user", content: String(t.pregunta) },
+    {
       role: "assistant",
       // Cada turno se devuelve en el MISMO formato en que se pidió, así que el
       // hilo va enseñando los dos caminos con ejemplos propios: cuándo se
@@ -354,11 +399,20 @@ export function construyeMensajes(historial = [], pregunta) {
       content: t.intencion
         ? JSON.stringify({ intencion: t.intencion, parametros: t.parametros ?? {} })
         : JSON.stringify({ respuesta: String(t.respuesta) }),
-    })
+    },
+  ])
+
+  const pesa = (m) => m.reduce((t, x) => t + x.content.length, 0)
+
+  // Se tira historia VIEJA hasta que quepa. La pregunta actual y el sistema no
+  // se tocan nunca: sin sistema el modelo no sabe qué formato devolver, y sin
+  // la pregunta no hay nada que contestar. Si aun así no cabe, el problema es
+  // el prompt, y eso lo cubre una prueba.
+  while (pares.length && pesa([sistema, ...pares.flat(), actual]) > presupuesto) {
+    pares.shift()
   }
 
-  mensajes.push({ role: "user", content: String(pregunta ?? "") })
-  return mensajes
+  return [sistema, ...pares.flat(), actual]
 }
 
 /* -------------------------------------------------------------- validador -- */

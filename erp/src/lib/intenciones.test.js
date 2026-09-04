@@ -12,6 +12,7 @@ import {
   construyeMensajes,
   pareceCifra,
   TURNOS_DE_CONTEXTO,
+  PRESUPUESTO_HILO,
   ejemplosSugeridos,
 } from "./intenciones.js"
 
@@ -777,4 +778,81 @@ test("el prompt le explica que crear NO guarda solo", () => {
   // Y que no puede editar ni borrar, para que no lo prometa.
   assert.match(p, /No hay forma de editar ni de borrar/)
   for (const n of ESCRIBEN) assert.ok(p.includes(n), `falta ${n} en el prompt`)
+})
+
+/* ================================================================== *
+ * EL HILO TIENE QUE CABER
+ * ================================================================== *
+ * La función tiene su propio tope y devuelve 413 al pasarlo. Ese tope es
+ * una defensa contra el abuso, no un mecanismo: una conversación normal
+ * con facturas largas lo pasaba sin que nadie abusara de nada, y moría
+ * con «la consulta es demasiado larga» sin manera de seguir — la persona
+ * no puede acortar un historial que no ve.
+ */
+
+const turnoGordo = (i) => ({
+  pregunta: `pregunta ${i} ` + "x".repeat(200),
+  intencion: "crear_factura",
+  parametros: {
+    cliente: "y".repeat(60),
+    lineas: Array.from({ length: 40 }, () => ({
+      producto: "z".repeat(40),
+      cantidad: 99,
+      precio: 1234.56,
+    })),
+  },
+})
+
+test("el peor caso posible cabe en el presupuesto", () => {
+  // Seis turnos de facturas de cuarenta renglones: sin recorte esto pesaba
+  // 30.000 caracteres contra un tope de 16.000.
+  const historial = Array.from({ length: TURNOS_DE_CONTEXTO }, (_, i) => turnoGordo(i))
+  const m = construyeMensajes(historial, "w".repeat(500))
+  const peso = m.reduce((t, x) => t + x.content.length, 0)
+  assert.ok(peso <= PRESUPUESTO_HILO, `pesa ${peso}, el presupuesto es ${PRESUPUESTO_HILO}`)
+})
+
+test("el presupuesto va por debajo del tope del servidor", () => {
+  // La función corta en 16.000 y vive en otro repo, así que no comparten la
+  // constante: el margen es lo que evita que un desajuste dé un 413.
+  assert.ok(PRESUPUESTO_HILO < 16000, "sin margen contra MAX_HILO del Edge Function")
+})
+
+test("al recortar se tira lo VIEJO y se conserva lo último", () => {
+  const historial = Array.from({ length: TURNOS_DE_CONTEXTO }, (_, i) => turnoGordo(i))
+  const m = construyeMensajes(historial, "la pregunta nueva")
+  const todo = m.map((x) => x.content).join("\n")
+  // El último turno es el que da el contexto de «¿y eso?»; el primero ya no
+  // le importa a nadie.
+  assert.ok(todo.includes(`pregunta ${TURNOS_DE_CONTEXTO - 1}`), "se perdió el turno más reciente")
+  assert.ok(!todo.includes("pregunta 0 "), "se conservó un turno viejo en vez de tirarlo")
+})
+
+test("el sistema y la pregunta actual NUNCA se recortan", () => {
+  // Sin sistema el modelo no sabe qué formato devolver; sin la pregunta no hay
+  // nada que contestar. Aunque el presupuesto sea absurdo, esos dos quedan.
+  const historial = Array.from({ length: TURNOS_DE_CONTEXTO }, (_, i) => turnoGordo(i))
+  const m = construyeMensajes(historial, "no me pueden borrar", 10)
+  assert.equal(m.length, 2)
+  assert.equal(m[0].role, "system")
+  assert.ok(m[0].content.length > 1000, "el prompt del sistema llegó entero")
+  assert.equal(m.at(-1).content, "no me pueden borrar")
+})
+
+test("un hilo que cabe no se toca", () => {
+  const historial = [
+    { pregunta: "¿cuánto me debe John Doe?", intencion: "saldo_cliente", parametros: { cliente: "John Doe" } },
+    { pregunta: "¿y sus facturas?", intencion: "ultimas_facturas", parametros: {} },
+  ]
+  const m = construyeMensajes(historial, "gracias")
+  assert.equal(m.length, 1 + 2 * 2 + 1)
+})
+
+test("el prompt del sistema cabe en el tope del contrato viejo", () => {
+  // El camino de un solo turno corta el prompt en 8.000. Si el catálogo crece
+  // más que eso, ese camino empieza a dar 413 sin que nadie lo note.
+  const p = construyePrompt()
+  assert.ok(p.length < 8000, `el prompt pesa ${p.length}, y MAX_PROMPT son 8000`)
+  // Y tiene que dejar sitio para al menos un par de turnos dentro del hilo.
+  assert.ok(p.length < PRESUPUESTO_HILO / 2, `el prompt se come el presupuesto del hilo`)
 })
