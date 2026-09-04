@@ -609,7 +609,25 @@ export function valida(crudo, contexto = {}) {
     const v = texto(crudos[p])
 
     if (v === "") {
-      const heredado = texto(contexto?.[p])
+      // ───────────────────────────────────────────────────────────────────────
+      // UN OPCIONAL DE UNA INTENCIÓN QUE ESCRIBE NO SE HEREDA
+      // ───────────────────────────────────────────────────────────────────────
+      // El contexto se acumula durante toda la sesión, así que heredar aquí
+      // arrastra valores viejos. En una consulta eso es cómodo —seguir en el
+      // mismo periodo— y como mucho enseña un dato de más.
+      //
+      // En una escritura es destructivo, y en silencio. `modo` vale "agregar"
+      // por defecto justamente para que equivocarse no borre nada; si se hereda
+      // un "reemplazar" que la persona dijo tres turnos atrás sobre OTRA
+      // factura, el defecto de seguridad deja de existir y la propuesta llega
+      // pidiendo borrar renglones que nadie mencionó. Lo mismo con `notas`:
+      // heredarlas le pega a una factura nueva la nota de otra.
+      //
+      // Los REQUERIDOS sí se heredan aunque escriban: es lo que hace que
+      // «y agrégale 5 gorras» sepa de qué factura habla, y el folio heredado
+      // se ve en la vista previa antes de confirmar.
+      const heredable = d.requerido || !def.escribe
+      const heredado = heredable ? texto(contexto?.[p]) : ""
       if (heredado !== "") {
         parametros[p] = heredado
         continue

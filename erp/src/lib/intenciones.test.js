@@ -969,3 +969,43 @@ test("acciones.js convierte lo desconocido en misceláneo, no aborta", async () 
   // …y sin precio también, o se facturaría en cero sin que nadie lo note.
   assert.match(bloque, /no me diste precio/, "un misceláneo sin precio debe abortar")
 })
+
+/* ================================================================== *
+ * LA HERENCIA NO PUEDE ROMPER UN DEFECTO DE SEGURIDAD
+ * ================================================================== *
+ * El contexto se acumula toda la sesión. En una consulta heredar es
+ * cómodo; en una escritura es destructivo y callado.
+ */
+
+test("un opcional de una intención que ESCRIBE no se hereda", () => {
+  // Si «reemplazar» de otra factura, tres turnos atrás, se hereda aquí, la
+  // propuesta llega pidiendo borrar renglones que nadie mencionó.
+  const r = valida(
+    { intencion: "editar_factura", parametros: { folio: "INV-00002" } },
+    { folio: "INV-00001", modo: "reemplazar", notas: "nota de otra factura" }
+  )
+  assert.equal(r.parametros.modo, "agregar", "heredó el modo destructivo")
+  assert.equal(r.parametros.notas, "", "heredó la nota de otra factura")
+})
+
+test("pero el REQUERIDO sí se hereda, aunque escriba", () => {
+  // Es lo que hace que «y agrégale 5 gorras» sepa de qué factura habla, y el
+  // folio heredado se ve en la vista previa antes de confirmar.
+  const r = valida(
+    { intencion: "editar_factura", parametros: { lineas: [{ producto: "G-201", cantidad: 5 }] } },
+    { folio: "INV-00042" }
+  )
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.folio, "INV-00042")
+})
+
+test("en una CONSULTA el opcional sí sigue heredándose", () => {
+  // «ventas del año» → «¿y los más vendidos?» debe quedarse en el año.
+  const r = valida({ intencion: "top_skus", parametros: {} }, { periodo: "anio" })
+  assert.equal(r.parametros.periodo, "anio")
+})
+
+test("lo que el modelo SÍ dice gana sobre el defecto, también al escribir", () => {
+  const r = valida({ intencion: "editar_factura", parametros: { folio: "INV-1", modo: "reemplazar" } })
+  assert.equal(r.parametros.modo, "reemplazar")
+})
