@@ -8,7 +8,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2"
  *
  *   1. Comprueba que quien llama tiene sesión válida en el proyecto.
  *   2. Descuenta su cupo (asistente_consumir, en Postgres).
- *   3. Guarda la llave de Groq y reenvía la pregunta.
+ *   3. Guarda la llave de 
+ * Groq y reenvía la pregunta.
  *
  * La llave vive aquí porque una app de navegador NO PUEDE guardarla: cualquier
  * cosa que entre al bundle es legible con las herramientas de desarrollador.
@@ -34,6 +35,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2"
 // permitir que alguien mande un libro.
 const MAX_PROMPT = 8000
 const MAX_PREGUNTA = 500
+
+// El hilo: tope de turnos y de tamaño total.
+//
+// Estos dos son lo que impide que la conversación se convierta en la vía de
+// escape del límite de arriba. Sin ellos, quien tenga sesión manda un
+// `mensajes` de doscientos turnos y usa esto como proxy gratuito de LLM
+// gastando una sola unidad de cupo.
+const MAX_MENSAJES = 15
+const MAX_HILO = 16000
 
 // El modelo se configura por variable de entorno para poder cambiarlo sin
 // tocar código.
@@ -108,21 +118,63 @@ Deno.serve(async (req) => {
   const { data: usuario, error: errAuth } = await supabase.auth.getUser()
   if (errAuth || !usuario?.user) return responde({ error: "Sesión inválida." }, 401)
 
-  let cuerpo: { prompt?: string; pregunta?: string }
+  type Mensaje = { role?: unknown; content?: unknown }
+  let cuerpo: { prompt?: string; pregunta?: string; mensajes?: Mensaje[] }
   try {
     cuerpo = await req.json()
   } catch {
     return responde({ error: "El cuerpo no es JSON." }, 400)
   }
 
-  const prompt = String(cuerpo.prompt ?? "")
-  const pregunta = String(cuerpo.pregunta ?? "").trim()
+  // ───────────────────────────────────────────────────────────────────────────
+  // DOS CONTRATOS A LA VEZ, A PROPÓSITO
+  // ───────────────────────────────────────────────────────────────────────────
+  // `mensajes` es el hilo de la conversación y es el camino nuevo.
+  // `prompt` + `pregunta` es el de un solo turno y se sigue aceptando para que
+  // un navegador con la versión anterior en caché no se quede sin asistente
+  // el rato que tarda en recargar.
+  let messages: { role: string; content: string }[]
 
-  if (!prompt || !pregunta) return responde({ error: "Faltan prompt o pregunta." }, 400)
-  if (prompt.length > MAX_PROMPT || pregunta.length > MAX_PREGUNTA) {
-    // Esto no es una validación de forma: es lo que impide que la función se
-    // use como proxy gratuito de LLM con la sesión de cualquier empleado.
-    return responde({ error: "La consulta es demasiado larga." }, 413)
+  if (Array.isArray(cuerpo.mensajes)) {
+    const crudos = cuerpo.mensajes
+    if (crudos.length === 0 || crudos.length > MAX_MENSAJES)
+      return responde({ error: "El hilo tiene un tamaño inválido." }, 400)
+
+    // Los roles se filtran contra una lista blanca. Un `role` inventado lo
+    // rechaza Groq con un 400 que aquí se vería como un 502 sin causa, y un
+    // role "system" en medio del hilo sería una vía para reescribir las reglas
+    // desde el navegador — que no da acceso a datos, pero sí gasta cupo y
+    // ensucia el diagnóstico.
+    const validos = new Set(["system", "user", "assistant"])
+    messages = []
+    for (const m of crudos) {
+      const role = String(m?.role ?? "")
+      const content = String(m?.content ?? "")
+      if (!validos.has(role) || !content) continue
+      messages.push({ role, content })
+    }
+
+    if (!messages.length) return responde({ error: "El hilo no trae mensajes válidos." }, 400)
+    if (messages[0].role !== "system")
+      return responde({ error: "El hilo debe empezar con el sistema." }, 400)
+
+    const largo = messages.reduce((t, m) => t + m.content.length, 0)
+    if (largo > MAX_HILO) return responde({ error: "La consulta es demasiado larga." }, 413)
+  } else {
+    const prompt = String(cuerpo.prompt ?? "")
+    const pregunta = String(cuerpo.pregunta ?? "").trim()
+
+    if (!prompt || !pregunta) return responde({ error: "Faltan prompt o pregunta." }, 400)
+    if (prompt.length > MAX_PROMPT || pregunta.length > MAX_PREGUNTA) {
+      // Esto no es una validación de forma: es lo que impide que la función se
+      // use como proxy gratuito de LLM con la sesión de cualquier empleado.
+      return responde({ error: "La consulta es demasiado larga." }, 413)
+    }
+
+    messages = [
+      { role: "system", content: prompt },
+      { role: "user", content: pregunta },
+    ]
   }
 
   // El cupo se descuenta ANTES de llamar a Groq. Al revés, un fallo del
@@ -152,10 +204,7 @@ Deno.serve(async (req) => {
         // modelo confundido escriba un ensayo y se lo cobre a la cuota.
         max_tokens: 200,
         response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: prompt },
-          { role: "user", content: pregunta },
-        ],
+        messages,
       }),
     })
   } catch (e) {

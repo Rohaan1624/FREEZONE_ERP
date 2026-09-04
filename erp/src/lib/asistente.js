@@ -1,6 +1,7 @@
 import { supabase, rpc } from "./supabase"
-import { construyePrompt, construyeMensajes, valida, NO_ENTENDIDO } from "./intenciones"
+import { construyePrompt, construyeMensajes, valida, NO_ENTENDIDO, ESCRIBEN } from "./intenciones"
 import { ejecuta, sinEntender, charla } from "./consultas"
+import { propone } from "./acciones"
 
 /**
  * El hilo completo de una pregunta.
@@ -153,7 +154,12 @@ export async function pregunta(texto, contexto = {}, historial = []) {
     return { error: v.motivo, cupo: data?.cupo }
   }
 
-  const r = await ejecuta(v.intencion, v.parametros)
+  // Las que escriben no se ejecutan aquí: se PROPONEN. propone() resuelve
+  // nombres contra la base y arma la vista previa, pero no guarda nada — la
+  // escritura la dispara el botón de confirmar, en aplica().
+  const r = ESCRIBEN.has(v.intencion)
+    ? await propone(v.intencion, v.parametros)
+    : await ejecuta(v.intencion, v.parametros)
   if (r?.error) return { error: r.error, cupo: data?.cupo }
 
   // El contexto para el siguiente turno sale de lo que ESTA consulta usó, no

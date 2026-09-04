@@ -131,6 +131,65 @@ export const INTENCIONES = {
     params: {},
   },
 
+  // ── Las que ESCRIBEN ───────────────────────────────────────────────────────
+  // Van marcadas con `escribe` y ninguna guarda nada por su cuenta: producen
+  // una propuesta que la persona ve y confirma. El modelo no tiene una puerta
+  // a la base de datos, tiene una puerta a un formulario ya lleno.
+  //
+  // No hay editar ni borrar a propósito. Crear de más se arregla; sobrescribir
+  // una factura que ya salió, no.
+  crear_cliente: {
+    descripcion: "Da de alta un cliente NUEVO. No sirve para modificar uno que ya existe.",
+    ejemplos: [
+      "agrega un cliente que se llama John Doe",
+      "crea el cliente Distribuidora Ejemplo con RUC 8-123-456",
+      "nuevo cliente Jane Roe a 30 días de crédito",
+    ],
+    escribe: true,
+    params: {
+      nombre: { tipo: "texto", requerido: true },
+      identificador: { tipo: "texto", requerido: false, porDefecto: "" },
+      contacto: { tipo: "texto", requerido: false, porDefecto: "" },
+      email: { tipo: "texto", requerido: false, porDefecto: "" },
+      dias_credito: { tipo: "numero", requerido: false, porDefecto: 0 },
+      direccion: { tipo: "texto", requerido: false, porDefecto: "" },
+      pais: { tipo: "texto", requerido: false, porDefecto: "" },
+    },
+  },
+  crear_producto: {
+    descripcion:
+      "Da de alta un producto NUEVO en el catálogo. La existencia no se fija aquí: entra por una compra o un ajuste.",
+    ejemplos: [
+      "agrega el producto PG-500 peine grande",
+      "crea un SKU nuevo: G-99 gorra negra a 4.50",
+      "nuevo producto CA-10 cinta aislante, costo 1.20 y precio 2.50",
+    ],
+    escribe: true,
+    params: {
+      sku: { tipo: "texto", requerido: true },
+      descripcion: { tipo: "texto", requerido: false, porDefecto: "" },
+      unidad: { tipo: "texto", requerido: false, porDefecto: "" },
+      por_bulto: { tipo: "numero", requerido: false, porDefecto: 1 },
+      costo: { tipo: "numero", requerido: false, porDefecto: null },
+      precio: { tipo: "numero", requerido: false, porDefecto: null },
+    },
+  },
+  crear_factura: {
+    descripcion:
+      "Prepara una factura para un cliente con sus líneas. Se guarda como BORRADOR para que la persona la revise y la emita.",
+    ejemplos: [
+      "hazle una factura a John Doe de 10 peines a 3.50",
+      "factura a Distribuidora Ejemplo: 20 gorras y 5 cables",
+      "emite una factura a Jane Roe con 100 PG-123 a 2.80",
+    ],
+    escribe: true,
+    params: {
+      cliente: { tipo: "texto", requerido: true },
+      lineas: { tipo: "lineas", requerido: true },
+      notas: { tipo: "texto", requerido: false, porDefecto: "" },
+    },
+  },
+
   // ── Lo social ──────────────────────────────────────────────────────────────
   // «Hola» no es una pregunta inválida: es el principio de una conversación, y
   // contestarle «no entendí» es un mal recibimiento. Van en el catálogo como
@@ -159,6 +218,19 @@ export const INTENCIONES = {
  * mantener una segunda lista que se desincronice del catálogo.
  */
 export const SOCIALES = new Set(["saludo", "ayuda"])
+
+/**
+ * Las que escriben. Se derivan del catálogo, no se listan a mano.
+ *
+ * Una segunda lista escrita a mano es como una intención que escribe termina
+ * tratada como lectura: se salta la confirmación y guarda sin que nadie lo
+ * haya aprobado. Aquí no puede desincronizarse.
+ */
+export const ESCRIBEN = new Set(
+  Object.entries(INTENCIONES)
+    .filter(([, i]) => i.escribe)
+    .map(([n]) => n)
+)
 
 /** Lo que se responde cuando la pregunta no cae en el catálogo. */
 export const NO_ENTENDIDO = "no_entendido"
@@ -198,6 +270,15 @@ Tienes DOS maneras de responder, y siempre devuelves UN objeto JSON:
    {"respuesta":"lo que le contestas, en español, breve y natural"}
 
 ANTE LA DUDA, CONSULTA. Es mejor enseñar un dato de más que contestar de memoria algo que estaba en la base.
+
+CREAR COSAS
+Las intenciones que empiezan por crear_ dan de alta algo nuevo. NO guardan nada por sí solas: la aplicación arma una vista previa y la persona la confirma con un botón. Así que propón sin miedo, pero no digas que ya quedó guardado — todavía no lo está.
+- Solo se puede CREAR. No hay forma de editar ni de borrar; si te piden cambiar o eliminar algo, dilo en "respuesta".
+- Pon únicamente los datos que la persona dio. No rellenes precios, RUC ni direcciones por tu cuenta: un dato inventado que alguien confirma sin mirar queda en el sistema para siempre.
+- Las líneas de crear_factura son una lista de objetos:
+  {"producto":"<SKU o nombre>","cantidad":<número>,"precio":<número opcional>}
+  o, si no es un producto del catálogo, {"descripcion":"<texto>","cantidad":<n>,"precio":<n>}
+  Omite "precio" si la persona no lo dijo: la aplicación toma el del catálogo.
 
 CATÁLOGO DE CONSULTAS
 ${lista}
@@ -316,6 +397,60 @@ function extraeJSON(texto) {
 const texto = (v) => (typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim())
 
 /**
+ * Un número del modelo, o null si no lo es.
+ *
+ * Puede llegar como número JSON o como texto («3.50», «$3.50», «1,200»). Lo
+ * que NO se hace es convertir la basura en cero: en un precio, cero es un
+ * valor válido y callado, y confundir «no entendí» con «vale cero» es como se
+ * emite una factura regalada.
+ */
+function aNumero(v) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null
+  const s = String(v ?? "")
+    .replace(/[$€\s]/g, "")
+    .replace(/,/g, "")
+  if (!s || !/^-?\d*\.?\d+$/.test(s)) return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Cuántas líneas se aceptan en una propuesta de factura. */
+const MAX_LINEAS = 40
+
+/**
+ * Las líneas de una factura propuesta, filtradas campo por campo.
+ *
+ * Mismo criterio que con los parámetros sueltos: solo pasan las cuatro claves
+ * declaradas y en el tipo que toca. Lo que el modelo invente —un product_id,
+ * un total ya calculado, un descuento— se queda fuera, porque el precio y el
+ * producto los resuelve la app contra la base al armar la propuesta.
+ *
+ * La cantidad NO tiene valor por defecto: una línea sin cantidad legible se
+ * descarta entera. Asumir 1 es exactamente el error que nadie revisa.
+ */
+function normalizaLineas(v) {
+  if (!Array.isArray(v)) return []
+  const salida = []
+  for (const cruda of v.slice(0, MAX_LINEAS)) {
+    if (!cruda || typeof cruda !== "object") continue
+    const producto = texto(cruda.producto ?? cruda.sku)
+    const descripcion = texto(cruda.descripcion)
+    const cantidad = aNumero(cruda.cantidad ?? cruda.qty)
+    const precio = aNumero(cruda.precio ?? cruda.unit_price)
+
+    if (!producto && !descripcion) continue
+    if (cantidad === null || cantidad <= 0) continue
+
+    const l = { cantidad }
+    if (producto) l.producto = producto
+    if (descripcion) l.descripcion = descripcion
+    if (precio !== null) l.precio = precio
+    salida.push(l)
+  }
+  return salida
+}
+
+/**
  * ¿Este texto está afirmando una cifra del negocio?
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -413,6 +548,9 @@ export function valida(crudo, contexto = {}) {
   const parametros = {}
 
   for (const [p, d] of Object.entries(def.params)) {
+    // Las líneas no son un escalar: se procesan en su propio paso, más abajo.
+    if (d.tipo === "lineas") continue
+
     const v = texto(crudos[p])
 
     if (v === "") {
@@ -434,7 +572,28 @@ export function valida(crudo, contexto = {}) {
       continue
     }
 
+    if (d.tipo === "numero") {
+      const n = aNumero(crudos[p])
+      // Un número ilegible NO se aproxima a cero: en un precio, cero es un
+      // valor perfectamente válido y silencioso. Se deja sin poner y quien
+      // resuelva la propuesta decide qué hacer con la ausencia.
+      parametros[p] = n === null ? d.porDefecto : n
+      continue
+    }
+
     parametros[p] = v
+  }
+
+  // Las líneas se validan aparte del bucle: no son un escalar y su contenido
+  // hay que filtrarlo campo por campo igual que los parámetros de arriba.
+  for (const [p, d] of Object.entries(def.params)) {
+    if (d.tipo !== "lineas") continue
+    const filas = normalizaLineas(crudos[p])
+    if (!filas.length) {
+      if (d.requerido) return { ok: false, motivo: `Falta el dato: ${p}.` }
+      continue
+    }
+    parametros[p] = filas
   }
 
   // Los parámetros no declarados se TIRAN, no se pasan. Lo que el modelo

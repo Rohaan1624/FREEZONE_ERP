@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import {
   INTENCIONES,
   SOCIALES,
+  ESCRIBEN,
   NOMBRES,
   NO_ENTENDIDO,
   valida,
@@ -157,9 +158,12 @@ test("cada intención está completa", () => {
     assert.ok(i.ejemplos?.length >= 1, `${nombre}: ejemplos`)
     assert.equal(typeof i.params, "object", `${nombre}: params`)
     for (const [p, d] of Object.entries(i.params)) {
-      assert.ok(["texto", "periodo"].includes(d.tipo), `${nombre}.${p}: tipo`)
-      // Un opcional sin valor por defecto deja la consulta a medias.
-      if (!d.requerido) assert.notEqual(d.porDefecto, undefined, `${nombre}.${p}: porDefecto`)
+      assert.ok(["texto", "periodo", "numero", "lineas"].includes(d.tipo), `${nombre}.${p}: tipo`)
+      // Un opcional sin valor por defecto deja la consulta a medias. `null` sí
+      // vale: en un precio significa «no me lo dijeron», que no es lo mismo
+      // que cero.
+      if (!d.requerido && d.tipo !== "lineas")
+        assert.notEqual(d.porDefecto, undefined, `${nombre}.${p}: porDefecto`)
     }
   }
 })
@@ -215,15 +219,76 @@ test("ejemplosSugeridos devuelve lo pedido", () => {
 
 /* ------------------------------------------------------------- ejecutores -- */
 
-test("cada intención del catálogo tiene su ejecutor", async () => {
-  // consultas.js importa el cliente de Supabase, que no arranca fuera del
-  // navegador, así que la cobertura se comprueba sobre el TEXTO del archivo.
-  // Sigue atrapando el olvido real: agregar una intención y no implementarla.
+const lee = async (archivo) => {
   const fs = await import("node:fs")
-  const fuente = fs.readFileSync(new URL("./consultas.js", import.meta.url), "utf8")
+  return fs.readFileSync(new URL(archivo, import.meta.url), "utf8")
+}
+
+test("cada intención del catálogo tiene su implementación, en el archivo que le toca", async () => {
+  // Estos archivos importan el cliente de Supabase, que no arranca fuera del
+  // navegador, así que la cobertura se comprueba sobre el TEXTO. Sigue
+  // atrapando el olvido real: agregar una intención y no implementarla.
+  const consultas = await lee("./consultas.js")
+  const acciones = await lee("./acciones.js")
+
   for (const n of NOMBRES) {
-    assert.match(fuente, new RegExp(`\\n  async ${n}\\(`), `falta el ejecutor de ${n}`)
+    const donde = ESCRIBEN.has(n) ? acciones : consultas
+    const otro = ESCRIBEN.has(n) ? consultas : acciones
+    const re = new RegExp(`\\n  async ${n}\\(`)
+    assert.match(donde, re, `falta la implementación de ${n}`)
+    // Y NO en el otro archivo: una intención que escribe implementada en
+    // consultas.js se saltaría la confirmación entera.
+    assert.ok(!re.test(otro), `${n} está implementada en el archivo equivocado`)
   }
+})
+
+test("las que escriben salen del catálogo, no de una lista aparte", async () => {
+  // Una segunda lista a mano es como una intención que escribe acaba tratada
+  // como lectura y guarda sin que nadie lo apruebe.
+  assert.deepEqual(
+    [...ESCRIBEN].sort(),
+    Object.entries(INTENCIONES)
+      .filter(([, i]) => i.escribe)
+      .map(([n]) => n)
+      .sort()
+  )
+  // Y son exactamente las tres que se pidieron: crear, sin editar ni borrar.
+  assert.deepEqual([...ESCRIBEN].sort(), ["crear_cliente", "crear_factura", "crear_producto"])
+})
+
+test("no hay ninguna intención de editar ni de borrar", async () => {
+  for (const n of NOMBRES) {
+    assert.ok(
+      !/^(editar|actualizar|modificar|borrar|eliminar|anular)/.test(n),
+      `${n}: solo se puede crear`
+    )
+  }
+  const acciones = await lee("./acciones.js")
+  for (const prohibido of [".update(", ".delete(", ".upsert("]) {
+    assert.ok(!acciones.includes(prohibido), `acciones.js no debe contener ${prohibido}`)
+  }
+})
+
+test("consultas.js sigue sin escribir nada", async () => {
+  // La garantía de solo lectura se mantiene separando los archivos, no
+  // confiando en que nadie meta un insert donde no toca.
+  const consultas = await lee("./consultas.js")
+  for (const escritura of [".insert(", ".update(", ".delete(", ".upsert("]) {
+    assert.ok(!consultas.includes(escritura), `consultas.js no debe contener ${escritura}`)
+  }
+})
+
+test("propone() y aplica() están separadas: proponer no escribe", async () => {
+  const acciones = await lee("./acciones.js")
+  // El bloque de propuestas no puede contener una escritura. Si alguien mete
+  // un insert en PROPONEN, la vista previa dejaría de ser una vista previa.
+  const bloque = acciones.slice(
+    acciones.indexOf("const PROPONEN = {"),
+    acciones.indexOf("const APLICAN = {")
+  )
+  assert.ok(bloque.length > 200, "no encontré el bloque de propuestas")
+  assert.ok(!bloque.includes(".insert("), "una propuesta está escribiendo")
+  assert.ok(!bloque.includes('rpc("create_'), "una propuesta está escribiendo")
 })
 
 test("ningún ejecutor escribe: el asistente es de solo lectura", async () => {
@@ -558,4 +623,158 @@ test("una charla entra al hilo con su propio formato", () => {
   )
   assert.deepEqual(m.map((x) => x.role), ["system", "user", "assistant", "user"])
   assert.deepEqual(JSON.parse(m[2].content), { respuesta: "El código de cada producto." })
+})
+
+/* ================================================================== *
+ * CREAR: LA VALIDACIÓN DE LO QUE ESCRIBE
+ * ================================================================== *
+ * El modelo no tiene una puerta a la base, tiene una puerta a un
+ * formulario ya lleno. Pero lo que llega a ese formulario sigue siendo
+ * texto de un modelo, así que pasa por la misma aduana que todo lo demás.
+ */
+
+test("una propuesta de cliente se valida como cualquier intención", () => {
+  const r = valida({
+    intencion: "crear_cliente",
+    parametros: { nombre: "John Doe", dias_credito: 30 },
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.nombre, "John Doe")
+  assert.equal(r.parametros.dias_credito, 30)
+})
+
+test("los opcionales que no vinieron toman su valor por defecto", () => {
+  const r = valida({ intencion: "crear_cliente", parametros: { nombre: "Jane Roe" } })
+  assert.equal(r.parametros.dias_credito, 0)
+  assert.equal(r.parametros.email, "")
+})
+
+test("un número puede venir como texto, con símbolo o con miles", () => {
+  const p = (v) => valida({ intencion: "crear_producto", parametros: { sku: "X-1", precio: v } })
+  assert.equal(p(3.5).parametros.precio, 3.5)
+  assert.equal(p("3.50").parametros.precio, 3.5)
+  assert.equal(p("$3.50").parametros.precio, 3.5)
+  assert.equal(p("1,200").parametros.precio, 1200)
+})
+
+test("un número ilegible NO se convierte en cero", () => {
+  // En un precio, cero es un valor válido y callado. Confundir «no entendí»
+  // con «vale cero» es como se emite una factura regalada.
+  const r = valida({
+    intencion: "crear_producto",
+    parametros: { sku: "X-1", precio: "como cuatro dólares" },
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.precio, null)
+})
+
+test("los parámetros inventados se tiran también al crear", () => {
+  const r = valida({
+    intencion: "crear_cliente",
+    parametros: { nombre: "John Doe", balance: 999999, user_id: "otro", id: "abc" },
+  })
+  assert.ok(!("balance" in r.parametros), "balance es columna revocada, no debe pasar")
+  assert.ok(!("user_id" in r.parametros))
+  assert.ok(!("id" in r.parametros))
+})
+
+/* ------------------------------------------------------- las líneas -- */
+
+test("las líneas de una factura se aceptan y se limpian", () => {
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: {
+      cliente: "John Doe",
+      lineas: [
+        { producto: "PG-123", cantidad: 10, precio: 3.5 },
+        { producto: "gorras", cantidad: 5 },
+      ],
+    },
+  })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.parametros.lineas, [
+    { cantidad: 10, producto: "PG-123", precio: 3.5 },
+    { cantidad: 5, producto: "gorras" },
+  ])
+})
+
+test("una línea sin cantidad legible se descarta, no se asume 1", () => {
+  // Asumir 1 es justo el error que nadie revisa al confirmar.
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: {
+      cliente: "John Doe",
+      lineas: [
+        { producto: "PG-123", cantidad: "varias" },
+        { producto: "G-94", cantidad: 5 },
+      ],
+    },
+  })
+  assert.equal(r.parametros.lineas.length, 1)
+  assert.equal(r.parametros.lineas[0].producto, "G-94")
+})
+
+test("una cantidad de cero o negativa tampoco pasa", () => {
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: { cliente: "X", lineas: [{ producto: "A", cantidad: 0 }, { producto: "B", cantidad: -3 }] },
+  })
+  assert.equal(r.ok, false)
+  assert.match(r.motivo, /lineas/)
+})
+
+test("las claves inventadas dentro de una línea se tiran", () => {
+  // El precio y el producto los resuelve la app contra la base; un
+  // product_id o un total que venga del modelo no pinta nada aquí.
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: {
+      cliente: "John Doe",
+      lineas: [
+        { producto: "PG-123", cantidad: 2, product_id: "uuid-falso", total: 999, descuento: 50 },
+      ],
+    },
+  })
+  assert.deepEqual(r.parametros.lineas, [{ cantidad: 2, producto: "PG-123" }])
+})
+
+test("una factura sin líneas no pasa la aduana", () => {
+  for (const v of [undefined, [], "diez peines", {}, [{ cantidad: 3 }]]) {
+    const r = valida({ intencion: "crear_factura", parametros: { cliente: "John Doe", lineas: v } })
+    assert.equal(r.ok, false, JSON.stringify(v))
+  }
+})
+
+test("las líneas NO se heredan del contexto", () => {
+  // «hazle otra factura a Jane» sin renglones no debe arrastrar los de la
+  // factura anterior: caro, silencioso y confirmable de un clic.
+  const r = valida(
+    { intencion: "crear_factura", parametros: { cliente: "Jane Roe" } },
+    { cliente: "John Doe", lineas: [{ producto: "PG-123", cantidad: 99 }] }
+  )
+  assert.equal(r.ok, false)
+  assert.match(r.motivo, /lineas/)
+})
+
+test("se acepta una línea libre, sin producto del catálogo", () => {
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: {
+      cliente: "John Doe",
+      lineas: [{ descripcion: "Flete marítimo", cantidad: 1, precio: 250 }],
+    },
+  })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.parametros.lineas, [
+    { cantidad: 1, descripcion: "Flete marítimo", precio: 250 },
+  ])
+})
+
+test("el prompt le explica que crear NO guarda solo", () => {
+  const p = construyePrompt()
+  assert.match(p, /CREAR COSAS/)
+  assert.match(p, /la persona la confirma/)
+  // Y que no puede editar ni borrar, para que no lo prometa.
+  assert.match(p, /No hay forma de editar ni de borrar/)
+  for (const n of ESCRIBEN) assert.ok(p.includes(n), `falta ${n} en el prompt`)
 })

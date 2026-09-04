@@ -1,9 +1,10 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
-import { Sparkles, CircleAlert, ArrowRight, Loader2 } from "lucide-react"
+import { Sparkles, CircleAlert, ArrowRight, Loader2, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { pregunta as preguntar, cupoActual } from "@/lib/asistente"
+import { aplica } from "@/lib/acciones"
 import { ejemplosSugeridos, NO_ENTENDIDO } from "@/lib/intenciones"
 
 /**
@@ -131,13 +132,126 @@ function Mensaje({ r, onSugerencia }) {
   )
 }
 
+/**
+ * Una propuesta de creación: lo que va a pasar si dices que sí.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * EL BOTÓN ES LA ÚNICA PUERTA A LA ESCRITURA
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Lo que se pinta aquí es exactamente el payload que se va a guardar, ya
+ * resuelto contra la base: este cliente, este SKU, este precio. Nada se
+ * escribe hasta el clic, y la pantalla no vuelve a resolver nada al
+ * confirmar — si lo hiciera, estaría enseñando una cosa y guardando otra.
+ */
+function Propuesta({ r, entrada, onConfirmar, onCancelar }) {
+  const { aplicando, hecho, cancelado, errorAccion } = entrada
+  const cerrada = Boolean(hecho || cancelado)
+
+  return (
+    <div>
+      <div className="text-[17px] font-semibold">{r.titulo}</div>
+
+      <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5">
+        {r.campos.map(([k, v]) => (
+          <div key={k} className="casilla">
+            <div className="rotulo">{k}</div>
+            <div className="mt-0.5 text-[15px] tabular-nums">{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {r.lineas?.length > 0 && (
+        <div className="registro mt-3 overflow-hidden">
+          <div className="registro-cab rotulo grid grid-cols-[110px_1fr_70px_90px_100px] items-center gap-3">
+            <div>SKU</div>
+            <div>Producto</div>
+            <div className="text-right">Cant.</div>
+            <div className="text-right">Precio</div>
+            <div className="text-right">Importe</div>
+          </div>
+          {r.lineas.map((l, i) => (
+            <div
+              key={i}
+              className="registro-fila grid grid-cols-[110px_1fr_70px_90px_100px] items-center gap-3 px-4 py-2 text-[13px]"
+            >
+              <div className="truncate">{l.sku}</div>
+              <div className="truncate">{l.descripcion}</div>
+              <div className="text-right tabular-nums">{l.cantidad}</div>
+              <div className="text-right tabular-nums">{l.precio}</div>
+              <div className="text-right tabular-nums">{l.importe}</div>
+            </div>
+          ))}
+          {r.total && (
+            <div className="flex items-baseline justify-between border-t border-neutral-300 bg-paper px-4 py-2.5">
+              <span className="rotulo">Total</span>
+              <span className="text-[17px] font-semibold tabular-nums">{r.total}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Los avisos NO bloquean: son cosas que mirar antes de decir que sí.
+          Bloquear por ellas obligaría a salir del asistente a arreglar algo
+          que a lo mejor está bien así. */}
+      {r.avisos?.length > 0 && !cerrada && (
+        <ul className="mt-3 flex flex-col gap-1">
+          {r.avisos.map((a, i) => (
+            <li key={i} className="flex items-start gap-2 text-[13px] text-neutral-700">
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-neutral-600" />
+              <span>{a}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {errorAccion && (
+        <div className="mt-3 flex items-start gap-2.5 text-[14px]">
+          <CircleAlert className="mt-0.5 size-[18px] shrink-0 text-neutral-600" />
+          <span>{errorAccion}</span>
+        </div>
+      )}
+
+      {hecho ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-3">
+          <Check className="size-[18px]" />
+          <span className="text-[14px]">{hecho.resumen}</span>
+          {hecho.enlace && (
+            <Link
+              to={hecho.enlace}
+              className="inline-flex items-center gap-1.5 text-[13px] text-neutral-600 hover:text-ink"
+            >
+              Abrirla
+              <ArrowRight className="size-3.5" />
+            </Link>
+          )}
+        </div>
+      ) : cancelado ? (
+        <div className="mt-4 border-t border-neutral-200 pt-3 text-[14px] text-neutral-700">
+          Cancelado. No guardé nada.
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center gap-2 border-t border-neutral-200 pt-3">
+          <button onClick={onConfirmar} disabled={aplicando} className="boton boton-ink">
+            {aplicando ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            {aplicando ? "Guardando…" : "Crear"}
+          </button>
+          <button onClick={onCancelar} disabled={aplicando} className="boton boton-claro">
+            Cancelar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const PINTA = { cifra: Cifra, ficha: Ficha, tabla: Tabla }
 
-function Respuesta({ entrada, onSugerencia }) {
+function Respuesta({ entrada, onSugerencia, onConfirmar, onCancelar }) {
   const { texto, error, resultado, cargando } = entrada
   // El mensaje se pinta aparte: no lleva marco ni enlace, solo texto.
   const esMensaje = resultado?.tipo === "mensaje"
-  const Pinta = resultado && !esMensaje ? PINTA[resultado.tipo] : null
+  const esPropuesta = resultado?.tipo === "propuesta"
+  const Pinta = resultado && !esMensaje && !esPropuesta ? PINTA[resultado.tipo] : null
 
   return (
     <div className="flex flex-col gap-2">
@@ -166,6 +280,20 @@ function Respuesta({ entrada, onSugerencia }) {
           )}
 
           {esMensaje && <Mensaje r={resultado} onSugerencia={onSugerencia} />}
+
+          {esPropuesta && (
+            <>
+              <p className="m-0 mb-3 text-[15px] leading-snug">{resultado.resumen}</p>
+              <div className="registro p-4">
+                <Propuesta
+                  r={resultado}
+                  entrada={entrada}
+                  onConfirmar={onConfirmar}
+                  onCancelar={onCancelar}
+                />
+              </div>
+            </>
+          )}
 
           {Pinta && (
             <>
@@ -245,11 +373,48 @@ export default function Asistente() {
     setHilo((h) => h.map((e) => (e.id === id ? { ...e, cargando: false, ...r } : e)))
     // Solo lo que se consultó de verdad entra al contexto; un fallo no debe
     // dejar un producto a medio resolver que contamine la siguiente pregunta.
-    if (r.parametros) setContexto((c) => ({ ...c, ...r.parametros }))
+    // Solo los ESCALARES entran al contexto. Heredar unas `lineas` de un
+    // turno anterior haría que «hazle otra factura a Jane» arrastrara los
+    // renglones de la factura pasada, que es un error caro y silencioso.
+    if (r.parametros) {
+      const escalares = Object.fromEntries(
+        Object.entries(r.parametros).filter(([, v]) => typeof v !== "object")
+      )
+      setContexto((c) => ({ ...c, ...escalares }))
+    }
     // El cupo lo devuelve la propia respuesta, así que no hace falta volver a
     // preguntarlo — y preguntarlo tampoco costaría, pero es un viaje de más.
     if (r.cupo) setCupo(r.cupo)
     setOcupado(false)
+    caja.current?.focus()
+  }
+
+  /**
+   * Confirmar una propuesta: aquí, y solo aquí, se escribe.
+   *
+   * Se manda la propuesta ENTERA a aplica(), no unos parámetros: lo que se
+   * guarda tiene que ser el mismo payload que se pintó.
+   */
+  async function confirmar(id) {
+    const e = hilo.find((x) => x.id === id)
+    if (!e || e.resultado?.tipo !== "propuesta" || e.aplicando || e.hecho || e.cancelado) return
+
+    setHilo((h) => h.map((x) => (x.id === id ? { ...x, aplicando: true, errorAccion: null } : x)))
+    const r = await aplica(e.resultado)
+    setHilo((h) =>
+      h.map((x) =>
+        x.id === id
+          ? r?.error
+            ? { ...x, aplicando: false, errorAccion: r.error }
+            : { ...x, aplicando: false, hecho: r }
+          : x
+      )
+    )
+    caja.current?.focus()
+  }
+
+  function cancelar(id) {
+    setHilo((h) => h.map((x) => (x.id === id ? { ...x, cancelado: true } : x)))
     caja.current?.focus()
   }
 
@@ -325,7 +490,13 @@ export default function Asistente() {
           ) : (
             <div className="mx-auto flex max-w-[860px] flex-col gap-5 px-4 py-5 sm:px-6">
               {hilo.map((e) => (
-                <Respuesta key={e.id} entrada={e} onSugerencia={enviar} />
+                <Respuesta
+                  key={e.id}
+                  entrada={e}
+                  onSugerencia={enviar}
+                  onConfirmar={() => confirmar(e.id)}
+                  onCancelar={() => cancelar(e.id)}
+                />
               ))}
             </div>
           )}

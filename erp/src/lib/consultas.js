@@ -123,7 +123,7 @@ async function buscaProductos(texto, tope = TOPE_BUSQUEDA) {
  * recibir los cuatro que coinciden ES la respuesta, y de paso deja a la vista
  * el SKU con el que preguntar por uno.
  */
-async function resuelveProducto(texto) {
+export async function resuelveProducto(texto) {
   const filas = await buscaProductos(texto)
   if (!filas.length) return { error: `No encontré ningún producto que coincida con «${texto}».` }
 
@@ -155,7 +155,7 @@ const filaProducto = (p) => ({
 })
 
 /** Mismo trato que los productos: varios candidatos se enseñan, no se rechazan. */
-async function resuelveCliente(texto) {
+export async function resuelveCliente(texto) {
   let q = supabase.from("client").select("*").order("name").limit(TOPE_BUSQUEDA)
   for (const f of filtrosBusqueda(texto, ["name", "identifier"])) q = q.or(f)
   const filas = revienta(await q)
