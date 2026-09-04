@@ -4,7 +4,7 @@ import { M, sumar } from "./dinero"
 import { resuelveCliente, resuelveProducto } from "./consultas"
 
 /**
- * Lo que el asistente puede CREAR.
+ * Lo que el asistente puede CREAR y EDITAR.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * DOS FASES, Y LA PRIMERA NO ESCRIBE
@@ -26,8 +26,10 @@ import { resuelveCliente, resuelveProducto } from "./consultas"
  * comprobable en vez de convertirla en una convención que alguien rompe sin
  * enterarse.
  *
- * SOLO SE CREA. No hay editar ni borrar, a propósito: crear de más se arregla
- * dando de baja o ignorando; sobrescribir una factura que ya salió, no.
+ * SE CREA Y SE EDITAN FACTURAS. Borrar no, y editar clientes o productos
+ * tampoco: crear de más se arregla ignorándolo, pero perder el histórico de
+ * un cliente o el costo de un SKU no. La factura sí se edita porque corregir
+ * un renglón mal puesto es el caso normal de una comercializadora.
  */
 
 /* ------------------------------------------------------------ la propuesta -- */
@@ -179,7 +181,7 @@ const filaLinea = (l) => ({
 })
 
 /** Lo que viaja al RPC: sin las claves de pintar. */
-const soloPayload = ({ _etiqueta, _sku, _nueva, ...resto }) => resto
+const soloPayload = ({ _etiqueta, _sku, ...resto }) => resto
 
 /* -------------------------------------------------------------- propuestas -- */
 
@@ -198,7 +200,9 @@ const PROPONEN = {
       .limit(3)
 
     const avisos = parecidos?.length
-      ? [`Ya tienes ${parecidos.length === 1 ? "un cliente" : "clientes"} con un nombre parecido: ${parecidos.map((c) => c.name).join(", ")}.`]
+      ? [
+          `Ya tienes ${parecidos.length === 1 ? "un cliente" : "clientes"} con un nombre parecido: ${parecidos.map((c) => c.name).join(", ")}.`,
+        ]
       : []
 
     const dias = Number(p.dias_credito) || 0
@@ -337,7 +341,6 @@ const PROPONEN = {
       }
     )
   },
-}
 
   async editar_factura(p) {
     const folio = String(p.folio ?? "").trim()
@@ -467,6 +470,14 @@ const APLICAN = {
     return {
       resumen: "Listo, la factura quedó como borrador. Ábrela para revisarla y emitirla.",
       enlace: `/facturas/${id}`,
+    }
+  },
+
+  async editar_factura(payload) {
+    await rpc("update_invoice", payload)
+    return {
+      resumen: "Listo, la factura quedó actualizada.",
+      enlace: `/facturas/${payload.p_invoice_id}`,
     }
   },
 }

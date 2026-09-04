@@ -253,21 +253,41 @@ test("las que escriben salen del catálogo, no de una lista aparte", async () =>
       .map(([n]) => n)
       .sort()
   )
-  // Y son exactamente las tres que se pidieron: crear, sin editar ni borrar.
-  assert.deepEqual([...ESCRIBEN].sort(), ["crear_cliente", "crear_factura", "crear_producto"])
+  // Crear las tres cosas, y editar SOLO facturas.
+  assert.deepEqual(
+    [...ESCRIBEN].sort(),
+    ["crear_cliente", "crear_factura", "crear_producto", "editar_factura"]
+  )
 })
 
-test("no hay ninguna intención de editar ni de borrar", async () => {
+test("no se puede borrar nada, ni editar clientes ni productos", async () => {
+  // Editar una FACTURA es corregir un renglón mal puesto, que pasa a diario.
+  // Editar un cliente o un producto toca datos de los que cuelga el histórico
+  // —el costo de un SKU, el crédito de una cuenta— y eso no se deshace.
   for (const n of NOMBRES) {
-    assert.ok(
-      !/^(editar|actualizar|modificar|borrar|eliminar|anular)/.test(n),
-      `${n}: solo se puede crear`
-    )
+    assert.ok(!/^(borrar|eliminar|anular)/.test(n), `${n}: no se borra nada`)
+    if (/^(editar|actualizar|modificar)/.test(n))
+      assert.equal(n, "editar_factura", `${n}: lo único editable es la factura`)
   }
   const acciones = await lee("./acciones.js")
-  for (const prohibido of [".update(", ".delete(", ".upsert("]) {
+  for (const prohibido of [".delete(", ".upsert("]) {
     assert.ok(!acciones.includes(prohibido), `acciones.js no debe contener ${prohibido}`)
   }
+  // El único update que puede haber es el RPC de facturas, nunca un
+  // .update() directo contra client o product.
+  assert.ok(!/\.from\("(client|product)"\)[\s\S]{0,80}\.update\(/.test(acciones))
+})
+
+test("editar_factura NO manda p_status: no puede desemitir una factura", async () => {
+  // update_invoice lee p_status null como «déjalo como está». Mandar 'draft'
+  // devolvería a borrador una factura ya emitida, desde una frase de chat.
+  const acciones = await lee("./acciones.js")
+  const bloque = acciones.slice(
+    acciones.indexOf("async editar_factura(p)"),
+    acciones.indexOf("const APLICAN")
+  )
+  assert.ok(bloque.length > 200, "no encontré el bloque de editar_factura")
+  assert.ok(!/p_status:/.test(bloque), "editar_factura está mandando p_status")
 })
 
 test("consultas.js sigue sin escribir nada", async () => {
@@ -771,12 +791,15 @@ test("se acepta una línea libre, sin producto del catálogo", () => {
   ])
 })
 
-test("el prompt le explica que crear NO guarda solo", () => {
+test("el prompt le explica que crear y editar NO guardan solos", () => {
   const p = construyePrompt()
-  assert.match(p, /CREAR COSAS/)
+  assert.match(p, /CREAR Y EDITAR/)
   assert.match(p, /la persona la confirma/)
-  // Y que no puede editar ni borrar, para que no lo prometa.
-  assert.match(p, /No hay forma de editar ni de borrar/)
+  // Y qué NO puede hacer, para que no lo prometa.
+  assert.match(p, /No hay forma de borrar nada/)
+  // Los dos modos de editar, o el modelo reemplazará cuando le pidan agregar.
+  assert.match(p, /"agregar"/)
+  assert.match(p, /"reemplazar"/)
   for (const n of ESCRIBEN) assert.ok(p.includes(n), `falta ${n} en el prompt`)
 })
 
@@ -855,4 +878,94 @@ test("el prompt del sistema cabe en el tope del contrato viejo", () => {
   assert.ok(p.length < 8000, `el prompt pesa ${p.length}, y MAX_PROMPT son 8000`)
   // Y tiene que dejar sitio para al menos un par de turnos dentro del hilo.
   assert.ok(p.length < PRESUPUESTO_HILO / 2, `el prompt se come el presupuesto del hilo`)
+})
+
+/* ================================================================== *
+ * EDITAR FACTURA
+ * ================================================================== */
+
+test("editar_factura pide folio y acepta líneas opcionales", () => {
+  const r = valida({
+    intencion: "editar_factura",
+    parametros: { folio: "INV-00042", lineas: [{ producto: "G-201", cantidad: 5 }] },
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.folio, "INV-00042")
+  assert.equal(r.parametros.modo, "agregar")
+})
+
+test("sin folio no se edita nada", () => {
+  const r = valida({ intencion: "editar_factura", parametros: { lineas: [{ producto: "X", cantidad: 1 }] } })
+  assert.equal(r.ok, false)
+  assert.match(r.motivo, /folio/)
+})
+
+test("se puede editar solo la nota, sin líneas", () => {
+  // `lineas` es opcional aquí, al revés que en crear_factura.
+  const r = valida({
+    intencion: "editar_factura",
+    parametros: { folio: "INV-00042", notas: "Entregar el viernes" },
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.notas, "Entregar el viernes")
+  assert.ok(!("lineas" in r.parametros))
+})
+
+test("el modo por defecto es AGREGAR, nunca reemplazar", () => {
+  // Si el modelo se equivoca de modo, agregar de más se ve en la vista previa
+  // y se cancela; reemplazar por error borra renglones que nadie quería tocar.
+  const r = valida({ intencion: "editar_factura", parametros: { folio: "INV-1" } })
+  assert.equal(r.parametros.modo, "agregar")
+})
+
+test("el modo reemplazar se respeta cuando se pide", () => {
+  const r = valida({
+    intencion: "editar_factura",
+    parametros: { folio: "INV-1", modo: "reemplazar", lineas: [{ producto: "A", cantidad: 1 }] },
+  })
+  assert.equal(r.parametros.modo, "reemplazar")
+})
+
+test("el folio de una edición SÍ se hereda del contexto", () => {
+  // «y agrégale 5 gorras» después de haber mirado una factura.
+  const r = valida(
+    { intencion: "editar_factura", parametros: { lineas: [{ producto: "G-201", cantidad: 5 }] } },
+    { folio: "INV-00042" }
+  )
+  assert.equal(r.ok, true)
+  assert.equal(r.parametros.folio, "INV-00042")
+})
+
+/* ------------------------------------------- lo que no está en catálogo -- */
+
+test("una línea sin producto de catálogo pero con precio se acepta", () => {
+  // La app la convierte en misceláneo; la aduana solo comprueba la forma.
+  const r = valida({
+    intencion: "crear_factura",
+    parametros: {
+      cliente: "John Doe",
+      lineas: [{ producto: "muestra especial de temporada", cantidad: 3, precio: 12.5 }],
+    },
+  })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.parametros.lineas, [
+    { cantidad: 3, producto: "muestra especial de temporada", precio: 12.5 },
+  ])
+})
+
+test("acciones.js convierte lo desconocido en misceláneo, no aborta", async () => {
+  const fs = await import("node:fs")
+  const fuente = fs.readFileSync(new URL("./acciones.js", import.meta.url), "utf8")
+  const bloque = fuente.slice(
+    fuente.indexOf("async function resuelveLineas"),
+    fuente.indexOf("const filaLinea")
+  )
+  assert.ok(bloque.length > 400, "no encontré resuelveLineas")
+  // Un producto que no existe cae a misceláneo…
+  assert.ok(bloque.includes("miscellaneous"), "no hay salida a misceláneo")
+  assert.match(bloque, /no está en el catálogo/, "no avisa de la conversión")
+  // …pero uno AMBIGUO sigue abortando: elegir al azar factura el SKU malo.
+  assert.match(bloque, /Dime el SKU exacto/, "la ambigüedad debe seguir abortando")
+  // …y sin precio también, o se facturaría en cero sin que nadie lo note.
+  assert.match(bloque, /no me diste precio/, "un misceláneo sin precio debe abortar")
 })
