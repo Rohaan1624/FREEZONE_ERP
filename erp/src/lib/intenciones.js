@@ -49,7 +49,7 @@ export const INTENCIONES = {
     descripcion:
       "Lista los productos cuyo nombre o SKU contiene un texto. Para preguntas en PLURAL o de catálogo: varios productos a la vez.",
     ejemplos: [
-      "lista todos cuchillos",
+      "lista todo los cuchillos",
       "¿qué gorras tengo?",
       "productos que digan esponja",
       "enséñame los cables",
@@ -291,14 +291,15 @@ Tienes DOS maneras de responder, y siempre devuelves UN objeto JSON:
 
 ANTE LA DUDA, CONSULTA. Es mejor enseñar un dato de más que contestar de memoria algo que estaba en la base.
 
-CREAR COSAS
-Las intenciones que empiezan por crear_ dan de alta algo nuevo. NO guardan nada por sí solas: la aplicación arma una vista previa y la persona la confirma con un botón. Así que propón sin miedo, pero no digas que ya quedó guardado — todavía no lo está.
-- Solo se puede CREAR. No hay forma de editar ni de borrar; si te piden cambiar o eliminar algo, dilo en "respuesta".
+CREAR Y EDITAR
+Las intenciones crear_ y editar_ cambian datos. NO guardan nada por sí solas: la aplicación arma una vista previa y la persona la confirma con un botón. Así que propón sin miedo, pero no digas que ya quedó guardado — todavía no lo está.
+- Solo se puede crear cliente, producto y factura, y editar FACTURAS. No hay forma de borrar nada ni de editar un cliente o un producto; si te lo piden, dilo en "respuesta".
 - Pon únicamente los datos que la persona dio. No rellenes precios, RUC ni direcciones por tu cuenta: un dato inventado que alguien confirma sin mirar queda en el sistema para siempre.
-- Las líneas de crear_factura son una lista de objetos:
+- Las líneas de factura son una lista de objetos:
   {"producto":"<SKU o nombre>","cantidad":<número>,"precio":<número opcional>}
-  o, si no es un producto del catálogo, {"descripcion":"<texto>","cantidad":<n>,"precio":<n>}
+  o, para algo que no es del catálogo, {"descripcion":"<texto>","cantidad":<n>,"precio":<n>}
   Omite "precio" si la persona no lo dijo: la aplicación toma el del catálogo.
+- En editar_factura, "modo" es "agregar" (suma esas líneas a las que ya tiene) o "reemplazar" (las deja como únicas). Si la persona dice «agrégale», «súmale» o «añádele», es agregar. Ante la duda, agregar.
 
 CATÁLOGO DE CONSULTAS
 ${lista}

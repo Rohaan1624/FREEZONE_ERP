@@ -74,6 +74,113 @@ function reparte(pares) {
   return { llenos, aviso }
 }
 
+/**
+ * Convierte las líneas que dictó la persona en líneas de factura reales.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LO QUE NO ESTÁ EN EL CATÁLOGO ENTRA COMO MISCELÁNEO
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Antes, nombrar algo que no existía abortaba la factura entera. Y en una
+ * comercializadora eso pasa a diario: se factura una muestra, un empaque
+ * especial, un artículo que se compró suelto y nunca se dio de alta. Obligar a
+ * crear un SKU para poder cobrar una vez es fricción pura.
+ *
+ * Así que si no aparece, se factura como misceláneo con el texto tal cual.
+ * Un misceláneo NO mueve inventario, que es justo lo correcto para algo que no
+ * está en el catálogo.
+ *
+ * Lo único que sigue abortando es un misceláneo SIN PRECIO: ahí no hay de
+ * dónde sacarlo, y ponerle cero facturaría gratis sin que nadie lo note.
+ *
+ * La ambigüedad tampoco se resuelve sola: si «peine» coincide con seis, se
+ * pide el SKU. Elegir uno al azar es como se factura el producto equivocado.
+ */
+async function resuelveLineas(crudas) {
+  const lineas = []
+  const avisos = []
+
+  for (const l of crudas) {
+    const libre = (descripcion) => {
+      lineas.push({
+        type: "miscellaneous",
+        product_id: null,
+        description: descripcion,
+        qty: Math.round(l.cantidad),
+        bultos: null,
+        unit: null,
+        unit_price: M(l.precio).toFixed(2),
+        _etiqueta: descripcion,
+        _sku: "—",
+      })
+    }
+
+    // Sin producto nombrado ya venía como línea libre.
+    if (!l.producto) {
+      if (l.precio == null)
+        return {
+          error: `La línea «${l.descripcion}» no tiene precio, y como no es un producto del catálogo no tengo de dónde sacarlo.`,
+        }
+      libre(l.descripcion)
+      continue
+    }
+
+    const r = await resuelveProducto(l.producto)
+
+    if (r.varios)
+      return {
+        error: `«${l.producto}» coincide con ${r.varios.length} productos: ${r.varios.map((x) => x.sku).join(", ")}. Dime el SKU exacto.`,
+      }
+
+    // No está en el catálogo: se factura como misceláneo en vez de abortar.
+    if (r.error) {
+      if (l.precio == null)
+        return {
+          error: `No tengo «${l.producto}» en el catálogo y no me diste precio. Dime a cuánto lo cobro y lo pongo como misceláneo.`,
+        }
+      const texto = l.descripcion || l.producto
+      avisos.push(`«${texto}» no está en el catálogo: va como misceláneo y no mueve inventario.`)
+      libre(texto)
+      continue
+    }
+
+    const prod = r.producto
+    const precio =
+      l.precio != null ? M(l.precio) : prod.sale_price != null ? M(prod.sale_price) : null
+    if (precio == null) return { error: `${prod.sku} no tiene precio de venta y tú no me diste uno.` }
+
+    const qty = Math.round(l.cantidad)
+    if (Number(prod.stock) < qty)
+      avisos.push(`${prod.sku}: pides ${n0(qty)} y hay ${n0(prod.stock)} en existencia.`)
+    if (l.precio == null) avisos.push(`${prod.sku}: usé el precio del catálogo, ${usd(precio)}.`)
+
+    lineas.push({
+      type: "product",
+      product_id: prod.id,
+      description: null,
+      qty,
+      bultos: null,
+      unit: prod.unit ?? null,
+      unit_price: precio.toFixed(2),
+      _etiqueta: prod.description || prod.sku,
+      _sku: prod.sku,
+    })
+  }
+
+  return { lineas, avisos }
+}
+
+/** Cómo se pinta una línea en la vista previa. */
+const filaLinea = (l) => ({
+  sku: l._sku,
+  descripcion: l._etiqueta,
+  cantidad: n0(l.qty),
+  precio: usd(l.unit_price),
+  importe: usd(M(l.unit_price).times(l.qty)),
+})
+
+/** Lo que viaja al RPC: sin las claves de pintar. */
+const soloPayload = ({ _etiqueta, _sku, _nueva, ...resto }) => resto
+
 /* -------------------------------------------------------------- propuestas -- */
 
 const PROPONEN = {
@@ -198,61 +305,9 @@ const PROPONEN = {
     const crudas = Array.isArray(p.lineas) ? p.lineas : []
     if (!crudas.length) return { error: "Necesito al menos una línea para la factura." }
 
-    const lineas = []
-    const avisos = []
-
-    for (const l of crudas) {
-      // Sin producto es una línea libre: se factura tal cual y no mueve stock.
-      if (!l.producto) {
-        if (l.precio == null)
-          return { error: `La línea «${l.descripcion}» no tiene precio y no es un producto del catálogo.` }
-        lineas.push({
-          type: "miscellaneous",
-          product_id: null,
-          description: l.descripcion,
-          qty: Math.round(l.cantidad),
-          bultos: null,
-          unit: null,
-          unit_price: M(l.precio).toFixed(2),
-          _etiqueta: l.descripcion,
-          _sku: "—",
-        })
-        continue
-      }
-
-      const r = await resuelveProducto(l.producto)
-      if (r.error) return { error: r.error }
-      // Un producto ambiguo NO se resuelve al azar: media docena de peines y
-      // elegir uno «el que sea» es como se factura el SKU equivocado.
-      if (r.varios)
-        return {
-          error: `«${l.producto}» coincide con ${r.varios.length} productos: ${r.varios.map((x) => x.sku).join(", ")}. Dime el SKU exacto.`,
-        }
-
-      const prod = r.producto
-      const precio = l.precio != null ? M(l.precio) : prod.sale_price != null ? M(prod.sale_price) : null
-      if (precio == null)
-        return { error: `${prod.sku} no tiene precio de venta y tú no me diste uno.` }
-
-      const qty = Math.round(l.cantidad)
-      if (Number(prod.stock) < qty)
-        avisos.push(
-          `${prod.sku}: pides ${n0(qty)} y hay ${n0(prod.stock)} en existencia.`
-        )
-      if (l.precio == null) avisos.push(`${prod.sku}: usé el precio del catálogo, ${usd(precio)}.`)
-
-      lineas.push({
-        type: "product",
-        product_id: prod.id,
-        description: null,
-        qty,
-        bultos: null,
-        unit: prod.unit ?? null,
-        unit_price: precio.toFixed(2),
-        _etiqueta: prod.description || prod.sku,
-        _sku: prod.sku,
-      })
-    }
+    const r = await resuelveLineas(crudas)
+    if (r.error) return { error: r.error }
+    const { lineas, avisos } = r
 
     const total = sumar(lineas, (l) => M(l.unit_price).times(l.qty))
 
@@ -266,25 +321,120 @@ const PROPONEN = {
         ["Estado", "Borrador"],
       ],
       {
-        lineas: lineas.map((l) => ({
-          sku: l._sku,
-          descripcion: l._etiqueta,
-          cantidad: n0(l.qty),
-          precio: usd(l.unit_price),
-          importe: usd(M(l.unit_price).times(l.qty)),
-        })),
+        lineas: lineas.map(filaLinea),
         total: usd(total),
         avisos,
         payload: {
           p_client_id: c.id,
-          // Las claves con _ son solo para pintar la vista previa; no viajan.
-          p_lines: lineas.map(({ _etiqueta, _sku, ...resto }) => resto),
+          p_lines: lineas.map(soloPayload),
           // BORRADOR y no activa, a propósito: emitir mueve inventario, y eso
           // no debería pasar por una frase mal entendida. La persona abre la
           // factura, la revisa y la emite desde su pantalla.
           p_status: "draft",
           p_notes: String(p.notas ?? "").trim(),
           p_due_date: null,
+        },
+      }
+    )
+  },
+}
+
+  async editar_factura(p) {
+    const folio = String(p.folio ?? "").trim()
+    if (!folio) return { error: "Necesito el folio de la factura." }
+
+    // Coincidencia EXACTA, no parcial. En una consulta, «la 42» y enseñar
+    // cuatro candidatas es útil; aquí llevaría a reescribir la factura
+    // equivocada, y eso no se arregla cancelando después.
+    const { data: encontradas } = await supabase
+      .from("invoice_listado")
+      .select("id,invoice_num,client_id,client_name,total,pagado,estado,status")
+      .ilike("invoice_num", folio.replace(/[%_\\]/g, "\\$&"))
+      .limit(2)
+
+    if (!encontradas?.length)
+      return { error: `No encontré ninguna factura con el folio «${folio}». Dámelo completo, como INV-00042.` }
+    if (encontradas.length > 1)
+      return { error: `«${folio}» coincide con más de una factura. Dame el folio completo.` }
+
+    const inv = encontradas[0]
+
+    // Una factura con abonos no se toca. Cambiarle el total deja el pago
+    // colgando contra un importe que ya no existe, y desde un chat nadie ve
+    // ese estropicio hasta que cuadra la cartera a fin de mes.
+    if (Number(inv.pagado) > 0)
+      return {
+        error: `${inv.invoice_num} ya tiene ${usd(inv.pagado)} abonados. No la edito desde aquí: cambiarle el total descuadraría el pago. Ábrela en la pantalla de facturas.`,
+      }
+
+    const nuevas = Array.isArray(p.lineas) ? p.lineas : []
+    const notas = String(p.notas ?? "").trim()
+    if (!nuevas.length && !notas)
+      return { error: `¿Qué le cambio a ${inv.invoice_num}? Dime las líneas o la nota.` }
+
+    // Las líneas que ya tiene, rehidratadas al mismo formato que las nuevas.
+    const { data: actuales } = await supabase
+      .from("transaction")
+      .select("type,product_id,description,qty,bultos,unit,unit_price,product(sku,description)")
+      .eq("invoice_id", inv.id)
+
+    const viejas = (actuales ?? []).map((t) => ({
+      type: t.type,
+      product_id: t.product_id,
+      description: t.description,
+      qty: t.qty,
+      bultos: t.bultos,
+      unit: t.unit,
+      unit_price: M(t.unit_price).toFixed(2),
+      _sku: t.product?.sku ?? "—",
+      _etiqueta: t.product?.description || t.description || "—",
+    }))
+
+    const r = nuevas.length ? await resuelveLineas(nuevas) : { lineas: [], avisos: [] }
+    if (r.error) return { error: r.error }
+
+    const reemplaza = String(p.modo ?? "agregar").toLowerCase().startsWith("reempl")
+    const finales = reemplaza ? r.lineas : [...viejas, ...r.lineas]
+    if (!finales.length)
+      return { error: "Una factura no puede quedarse sin líneas." }
+
+    const avisos = [...r.avisos]
+    if (reemplaza && viejas.length)
+      avisos.push(
+        `Reemplazo: se quitan las ${viejas.length === 1 ? "línea que tenía" : `${viejas.length} líneas que tenía`} y quedan solo las nuevas.`
+      )
+    // Editar una factura ACTIVA mueve inventario al confirmar. Decirlo es
+    // parte de lo que la persona está aprobando.
+    if (inv.status === "active")
+      avisos.push("Está emitida: al guardar se ajusta el inventario por la diferencia.")
+
+    const antes = M(inv.total)
+    const despues = sumar(finales, (l) => M(l.unit_price).times(l.qty))
+    const delta = despues.minus(antes)
+
+    return propuesta(
+      "editar_factura",
+      `${inv.invoice_num} · ${inv.client_name ?? "sin cliente"}`,
+      `${reemplaza ? "Voy a dejar" : "Voy a agregarle"} ${r.lineas.length === 1 ? "una línea" : `${r.lineas.length} líneas`} a ${inv.invoice_num}. Pasa de ${usd(antes)} a ${usd(despues)} (${delta.gte(0) ? "+" : ""}${usd(delta)}). ¿La guardo?`,
+      [
+        ["Factura", inv.invoice_num],
+        ["Cliente", inv.client_name ?? "—"],
+        ["Estado", inv.estado],
+        ["Total actual", usd(antes)],
+        ["Total nuevo", usd(despues)],
+      ],
+      {
+        lineas: finales.map(filaLinea),
+        total: usd(despues),
+        avisos,
+        payload: {
+          p_invoice_id: inv.id,
+          p_lines: finales.map(soloPayload),
+          // '' borraría la nota; null la deja como estaba.
+          p_notes: notas || null,
+          // p_status se OMITE a propósito: por defecto es null y el RPC lo lee
+          // como «déjalo como está». Mandar 'draft' desemitiría una factura
+          // que ya salió, y desde una frase de chat.
         },
       }
     )
