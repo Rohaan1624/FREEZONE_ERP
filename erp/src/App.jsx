@@ -2,6 +2,7 @@ import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom'
 
 import { AuthProvider } from '@/lib/auth'
 import { AppShell } from '@/components/app-shell'
+import { SoloEscritorio } from '@/components/solo-escritorio'
 import Login from '@/pages/login'
 import Facturas from '@/pages/facturas'
 import FacturaForm from '@/pages/factura-form'
@@ -37,10 +38,15 @@ import Asistente from '@/pages/asistente'
  */
 export const router = createBrowserRouter([
   {
+    // SoloEscritorio va POR FUERA de AuthProvider a propósito: el muro tiene
+    // que salir también en /login, o alguien entra desde el teléfono, ve la
+    // sesión iniciada y se topa con la pared después de escribir la clave.
     element: (
-      <AuthProvider>
-        <Outlet />
-      </AuthProvider>
+      <SoloEscritorio>
+        <AuthProvider>
+          <Outlet />
+        </AuthProvider>
+      </SoloEscritorio>
     ),
     children: [
       { path: '/login', element: <Login /> },
