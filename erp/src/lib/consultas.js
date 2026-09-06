@@ -12,8 +12,11 @@ import { INTENCIONES, SOCIALES } from "./intenciones"
  * y corre la consulta real. El modelo no participa de este lado — por eso
  * ninguna cifra que se pinte puede haber sido inventada.
  *
- * TODO ES SOLO LECTURA. Ningún ejecutor escribe; crear productos o facturas
- * viene después y por otra puerta, con vista previa y confirmación.
+ * TODO ES SOLO LECTURA, y hay una prueba que lo verifica leyendo el TEXTO de
+ * este archivo: cualquier llamada de escritura de PostgREST que aparezca aquí
+ * —aunque sea dentro de un comentario, como acabo de comprobar— la hace
+ * fallar. Crear y editar entran por otra puerta, acciones.js, con vista previa
+ * y confirmación.
  *
  * RLS sigue haciendo su trabajo: las consultas salen con la sesión de quien
  * pregunta, así que el asistente no puede enseñar nada que esa persona no
@@ -572,7 +575,7 @@ const EJECUTORES = {
       .map(([, i]) => `· ${i.descripcion}`)
       .join("\n")
     return mensaje(
-      `Consulto lo que ya está en tu ERP y te lo enseño con el dato de respaldo. Las cifras salen de la base, nunca me las invento.\n\n${puede}\n\nPor ahora solo consulto: no creo ni modifico nada.`,
+      `Consulto lo que ya está en tu ERP y te lo enseño con el dato de respaldo. Las cifras salen de la base, nunca me las invento.\n\n${puede}\n\nTambién doy de alta clientes, productos y facturas, y edito facturas. Nunca guardo nada por mi cuenta: te enseño exactamente qué va a quedar y lo confirmas tú. Borrar no puedo.`,
       muestrario(4)
     )
   },

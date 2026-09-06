@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom'
 
 import { AuthProvider } from '@/lib/auth'
 import { AppShell } from '@/components/app-shell'
@@ -20,39 +20,58 @@ import Resumen from '@/pages/resumen'
 import Importar from '@/pages/importar'
 import Asistente from '@/pages/asistente'
 
-function App() {
-  return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        {/* Target of the password-reset email link */}
-        <Route path="/nueva-clave" element={<NuevaClave />} />
+/**
+ * Data router, no <BrowserRouter><Routes>.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUÉ EL CAMBIO
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `useBlocker` —lo único que puede frenar el botón ATRÁS del navegador— exige
+ * un data router; con el declarativo simplemente no existe. Y sin él, salir de
+ * una factura a medio capturar se llevaba el trabajo en silencio.
+ *
+ * El árbol es plano y no usa loaders ni actions, así que la conversión es
+ * mecánica: AuthProvider, que antes envolvía a <Routes>, pasa a ser el
+ * elemento de la ruta raíz. No usa hooks de router, así que da igual estar
+ * dentro del router — y estando dentro, sus hijos siguen viéndolo igual.
+ */
+export const router = createBrowserRouter([
+  {
+    element: (
+      <AuthProvider>
+        <Outlet />
+      </AuthProvider>
+    ),
+    children: [
+      { path: '/login', element: <Login /> },
+      // Target of the password-reset email link
+      { path: '/nueva-clave', element: <NuevaClave /> },
 
-        {/* AppShell redirects to /login when there is no session */}
-        <Route element={<AppShell />}>
-          <Route index element={<Resumen />} />
-          <Route path="facturas" element={<Facturas />} />
-          <Route path="facturas/nueva" element={<FacturaForm />} />
-          <Route path="facturas/:id" element={<Factura />} />
-          <Route path="facturas/:id/editar" element={<FacturaForm />} />
-          <Route path="facturas/:id/imprimir" element={<FacturaImprimir />} />
-          <Route path="clientes" element={<Clientes />} />
-          <Route path="clientes/:id" element={<Cliente />} />
-          <Route path="productos" element={<Productos />} />
-          <Route path="productos/:id" element={<Producto />} />
-          <Route path="entradas" element={<Entradas />} />
-          <Route path="entradas/nueva" element={<Entrada />} />
-          <Route path="entradas/ajustes" element={<Ajustes />} />
-          <Route path="entradas/:id" element={<Entrada />} />
-          <Route path="empresa" element={<Empresa />} />
-          <Route path="importar" element={<Importar />} />
-          <Route path="asistente" element={<Asistente />} />
-        </Route>
+      // AppShell redirects to /login when there is no session
+      {
+        element: <AppShell />,
+        children: [
+          { index: true, element: <Resumen /> },
+          { path: 'facturas', element: <Facturas /> },
+          { path: 'facturas/nueva', element: <FacturaForm /> },
+          { path: 'facturas/:id', element: <Factura /> },
+          { path: 'facturas/:id/editar', element: <FacturaForm /> },
+          { path: 'facturas/:id/imprimir', element: <FacturaImprimir /> },
+          { path: 'clientes', element: <Clientes /> },
+          { path: 'clientes/:id', element: <Cliente /> },
+          { path: 'productos', element: <Productos /> },
+          { path: 'productos/:id', element: <Producto /> },
+          { path: 'entradas', element: <Entradas /> },
+          { path: 'entradas/nueva', element: <Entrada /> },
+          { path: 'entradas/ajustes', element: <Ajustes /> },
+          { path: 'entradas/:id', element: <Entrada /> },
+          { path: 'empresa', element: <Empresa /> },
+          { path: 'importar', element: <Importar /> },
+          { path: 'asistente', element: <Asistente /> },
+        ],
+      },
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AuthProvider>
-  )
-}
-
-export default App
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
+])

@@ -291,9 +291,14 @@ begin
     from public.client c
    where c.id = p_client_id and c.user_id = v_uid;
 
+  -- bill_to_*: lo que se IMPRIME, cuando difiere de la ficha del cliente.
+  -- Van aparte de client_name a propósito: esa columna la lee el buscador de
+  -- facturas, así que un nombre alterno ahí haría que buscar por el nombre
+  -- real del cliente dejara de encontrar la factura. Ver migration-005.
   insert into public.invoice
     (invoice_num, client_id, client_name, user_id, status, notes, due_date, date_created,
-     purchase_order, salesperson, consigned_to, marks, dispatched, shipped_via)
+     purchase_order, salesperson, consigned_to, marks, dispatched, shipped_via,
+     bill_to_name, bill_to_address, bill_to_country)
   select v_num, c.id, c.name, v_uid, p_status, p_notes, v_due,
          coalesce(p_date::timestamptz, now()),
          nullif(p_doc ->> 'purchase_order', ''),
@@ -301,7 +306,10 @@ begin
          nullif(p_doc ->> 'consigned_to', ''),
          nullif(p_doc ->> 'marks', ''),
          nullif(p_doc ->> 'dispatched', ''),
-         nullif(p_doc ->> 'shipped_via', '')
+         nullif(p_doc ->> 'shipped_via', ''),
+         nullif(p_doc ->> 'bill_to_name', ''),
+         nullif(p_doc ->> 'bill_to_address', ''),
+         nullif(p_doc ->> 'bill_to_country', '')
     from public.client c
    where c.id = p_client_id
      and c.user_id = v_uid
@@ -452,6 +460,18 @@ begin
 
   -- coalesce por clave: lo que no venga en p_doc se queda como está, así que
   -- un formulario parcial nunca borra datos que no mostraba.
+  --
+  -- OJO con la diferencia entre los dos bloques de abajo, es deliberada.
+  --
+  -- Los de EMBARQUE usan coalesce: mandar "" restaura el valor viejo, o sea que
+  -- una vez puestos no se pueden borrar. Se conserva ese comportamiento.
+  --
+  -- Los bill_to_* NO pueden funcionar así. Ahí vacío significa algo concreto —
+  -- «deja de imprimir el nombre alterno y vuelve al del cliente»— y con
+  -- coalesce esa marcha atrás sería imposible: quien se equivocara al escribir
+  -- la razón social se quedaría con ella pegada al documento para siempre.
+  -- Con `p_doc ? clave` se distingue «no me mandaron la clave» (no tocar) de
+  -- «me la mandaron vacía» (limpiar).
   if p_doc is not null then
     update public.invoice
        set purchase_order = coalesce(nullif(p_doc ->> 'purchase_order', ''), purchase_order),
@@ -459,7 +479,16 @@ begin
            consigned_to   = coalesce(nullif(p_doc ->> 'consigned_to', ''),   consigned_to),
            marks          = coalesce(nullif(p_doc ->> 'marks', ''),          marks),
            dispatched     = coalesce(nullif(p_doc ->> 'dispatched', ''),     dispatched),
-           shipped_via    = coalesce(nullif(p_doc ->> 'shipped_via', ''),    shipped_via)
+           shipped_via    = coalesce(nullif(p_doc ->> 'shipped_via', ''),    shipped_via),
+           bill_to_name    = case when p_doc ? 'bill_to_name'
+                                  then nullif(p_doc ->> 'bill_to_name', '')
+                                  else bill_to_name end,
+           bill_to_address = case when p_doc ? 'bill_to_address'
+                                  then nullif(p_doc ->> 'bill_to_address', '')
+                                  else bill_to_address end,
+           bill_to_country = case when p_doc ? 'bill_to_country'
+                                  then nullif(p_doc ->> 'bill_to_country', '')
+                                  else bill_to_country end
      where id = p_invoice_id;
   end if;
 

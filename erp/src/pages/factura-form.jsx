@@ -1,8 +1,9 @@
 import * as React from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useBlocker } from "react-router-dom"
 import {
   ArrowLeft,
-  Check,
+  Save,
+  PackageCheck,
   Trash2,
   Plus,
   PlusCircle,
@@ -19,6 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
 import { CrearCliente, CrearProducto } from "@/components/crear-rapido"
+import { Confirmar } from "@/components/confirmar"
 import { usd, n0, fecha, hoyISO, masDias } from "@/lib/format"
 import {
   lineaSuelta,
@@ -47,10 +49,18 @@ const TABS = [
 
 const UNIDADES = ["PZA", "BOX", "DOC", "CTN", "KG", "PAL"]
 
-// Cabecera de embarque: solo salen impresos, no afectan existencia ni saldo.
+// Datos del DOCUMENTO: solo salen impresos, no afectan existencia ni saldo.
 // Viajan agrupados como p_doc (jsonb) para que agregar un campo más no cambie
 // la firma del RPC otra vez.
-const EMBARQUE = [
+//
+// Los tres primeros son OVERRIDES de la ficha del cliente, y por eso su
+// placeholder es el dato real: dejarlos en blanco imprime lo del cliente, y
+// verlo ahí en gris dice la regla sin necesidad de explicarla. Su `cliente`
+// marca de dónde sale ese respaldo.
+const CAMPOS_DOC = [
+  ["bill_to_name", "Vendido a", "", "name"],
+  ["bill_to_address", "Dirección", "", "address"],
+  ["bill_to_country", "País", "", "country"],
   ["purchase_order", "Orden de compra", "OC-0001"],
   ["salesperson", "Vendedor", "John Doe"],
   ["consigned_to", "Consignado a", "John Doe"],
@@ -58,14 +68,14 @@ const EMBARQUE = [
   ["dispatched", "Despachado", ""],
   ["shipped_via", "Embarcado vía", ""],
 ]
-const DOC_VACIO = Object.fromEntries(EMBARQUE.map(([k]) => [k, ""]))
+const DOC_VACIO = Object.fromEntries(CAMPOS_DOC.map(([k]) => [k, ""]))
 
 // One grid per line shape, shared by the header row and its rows so the
-// columns line up. Products get a "capturar por" switch because bultos and
-// cantidad convert; misceláneos get both fields loose because they do not;
-// cargos get neither because they are money.
+// columns line up. Un producto ya no lleva columna de selector: se hace clic
+// en el campo que se quiere escribir. Misceláneos llevan los dos campos
+// sueltos porque no convierten; los cargos ninguno, porque son dinero.
 const GRID = {
-  product: "grid-cols-[minmax(0,1.5fr)_124px_78px_78px_70px_92px_minmax(0,0.8fr)_34px]",
+  product: "grid-cols-[minmax(0,1.5fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
   miscellaneous: "grid-cols-[minmax(0,1.7fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
   charge: "grid-cols-[minmax(0,2fr)_86px_92px_minmax(0,0.8fr)_34px]",
 }
@@ -89,7 +99,10 @@ export default function FacturaForm() {
   const [lineas, setLineas] = React.useState([])
   const [notas, setNotas] = React.useState("")
   const [dias, setDias] = React.useState("0")
-  const [descontar, setDescontar] = React.useState(true)
+  // Apagado por defecto: descontar es la acción IRREVERSIBLE de esta pantalla,
+  // y tenerla encendida de salida hacía que una factura a medio capturar
+  // moviera existencias en cuanto alguien pulsaba guardar.
+  const [descontar, setDescontar] = React.useState(false)
   const [busca, setBusca] = React.useState("")
   const [error, setError] = React.useState("")
   const [guardando, setGuardando] = React.useState(false)
@@ -100,11 +113,18 @@ export default function FacturaForm() {
   const [verEmbarque, setVerEmbarque] = React.useState(false)
   const [nuevoCliente, setNuevoCliente] = React.useState(false)
   const [nuevoSku, setNuevoSku] = React.useState(false)
+  // Solo se puede fijar al CREAR: create_invoice acepta p_date, update_invoice
+  // no. Al editar se pinta de solo lectura.
+  const [emitida, setEmitida] = React.useState(hoyISO())
+  const [confirmaInventario, setConfirmaInventario] = React.useState(false)
+  const [base, setBase] = React.useState(null)
 
   React.useEffect(() => {
     supabase
       .from("client")
-      .select("id,name,payment_terms,balance")
+      // address y country se traen para poder enseñarlos como placeholder de
+      // los campos alternos: así se ve qué se va a imprimir si se dejan vacíos.
+      .select("id,name,payment_terms,balance,address,country")
       .order("name")
       .then(({ data }) => {
         setClientes(data ?? [])
@@ -139,17 +159,26 @@ export default function FacturaForm() {
           setClienteId(data.client_id)
           setNotas(data.notes ?? "")
           setVence(data.due_date ?? "")
+          setEmitida(String(data.date_created ?? "").slice(0, 10))
+          // Se lee del estado guardado, NO del valor por defecto. Ponerlo en
+          // false al abrir una factura ya emitida haría que guardarla la
+          // devolviera a borrador y regresara el stock sin que nadie lo pida.
           setDescontar(data.status !== "draft")
-          setDoc(Object.fromEntries(EMBARQUE.map(([k]) => [k, data[k] ?? ""])))
+          setDoc(Object.fromEntries(CAMPOS_DOC.map(([k]) => [k, data[k] ?? ""])))
           // Si la factura ya trae datos de embarque, abre la sección para que
           // no queden escondidos detrás de un colapsable.
-          setVerEmbarque(EMBARQUE.some(([k]) => data[k]))
-          setLineas(
-            desdeFilas(
-              data.transaction ?? [],
-              (data.transaction ?? []).map((t) => t.product).filter(Boolean)
-            )
+          setVerEmbarque(CAMPOS_DOC.some(([k]) => data[k]))
+          const iniciales = desdeFilas(
+            data.transaction ?? [],
+            (data.transaction ?? []).map((t) => t.product).filter(Boolean)
           )
+          setLineas(iniciales)
+          // La referencia contra la que se decide si hay cambios sin guardar.
+          // Se congela AQUÍ y no se recalcula después: rehacer desdeFilas más
+          // tarde usaría el catálogo de productos, que puede no haber llegado
+          // todavía, y una línea vieja sin bultos guardados se rederivaría
+          // distinta — dando un «hay cambios» que nadie hizo.
+          setBase(JSON.stringify(aPayload(iniciales)))
         }
         setCargando(false)
       })
@@ -210,7 +239,67 @@ export default function FacturaForm() {
   const cortos = descontar ? sinExistencia(lineas, yaReservado) : []
   const puedeGuardar = lineas.length > 0 && faltantes.length === 0 && clienteId && !guardando
 
+  /* ------------------------------------------------- cambios sin guardar -- */
+  // Se compara contra lo CARGADO, no contra un flag que cada onChange tendría
+  // que acordarse de levantar: ese flag se olvida en el primer campo nuevo que
+  // alguien añada, y entonces el aviso deja de salir sin que nadie lo note.
+  const hayDoc = CAMPOS_DOC.some(([k]) => (doc[k] ?? "").trim())
+  const sucio = React.useMemo(() => {
+    // Al guardar se apaga: si no, el propio navigate() del guardado abriría el
+    // aviso de «vas a perder los cambios» justo después de guardarlos.
+    if (guardando) return false
+    // Capturando: cuenta también la cabecera. Escribir una razón social larga
+    // y perderla por no haber puesto renglones todavía sería absurdo.
+    if (!editando) return lineas.length > 0 || hayDoc || notas.trim() !== ""
+    if (!original || base === null) return false
+    return (
+      !CAMPOS_DOC.every(([k]) => (doc[k] ?? "") === (original[k] ?? "")) ||
+      clienteId !== original.client_id ||
+      notas !== (original.notes ?? "") ||
+      vence !== (original.due_date ?? "") ||
+      descontar !== (original.status !== "draft") ||
+      JSON.stringify(aPayload(lineas)) !== base
+    )
+  }, [guardando, editando, original, base, lineas, clienteId, notas, vence, descontar, doc, hayDoc])
+
+  // Navegación DENTRO de la app: pestañas del menú, «cancelar y volver» y el
+  // botón atrás del navegador. Necesita el data router de App.jsx.
+  const bloqueo = useBlocker(sucio)
+
+  // Y esto es lo otro: useBlocker no ve cerrar ni recargar la pestaña.
+  React.useEffect(() => {
+    if (!sucio) return
+    const alSalir = (e) => e.preventDefault()
+    window.addEventListener("beforeunload", alSalir)
+    return () => window.removeEventListener("beforeunload", alSalir)
+  }, [sucio])
+
+  /* ------------------------------------------------------ qué hace el botón */
+  // El botón dice EXACTAMENTE lo que va a pasar. Antes decía «Emitir factura»
+  // con un ✓ tanto si creaba un borrador como si movía inventario, y no había
+  // manera de saber cuál de las tres cosas estabas haciendo.
+  const accion = descontar
+    ? { texto: editando ? "Guardar y aplicar al inventario" : "Crear y aplicar al inventario", Icono: PackageCheck }
+    : { texto: editando ? "Guardar cambios" : "Guardar borrador", Icono: Save }
+
+  // Lo que de verdad sale del almacén, para que el aviso diga una cifra y no
+  // una advertencia genérica que nadie lee.
+  const aDescontar = React.useMemo(
+    () => porTipo(lineas, "product").reduce((t, l) => t + Number(l.qty || 0), 0),
+    [lineas]
+  )
+  const skusTocados = porTipo(lineas, "product").length
+
+  function alPulsarGuardar() {
+    if (!puedeGuardar) return
+    // Solo se pregunta por lo irreversible. Guardar un borrador no mueve nada,
+    // así que interrumpir ahí sería ruido que enseña a ignorar los diálogos.
+    if (descontar) setConfirmaInventario(true)
+    else guardar()
+  }
+
   async function guardar() {
+    setConfirmaInventario(false)
     setError("")
     setGuardando(true)
     try {
@@ -226,7 +315,13 @@ export default function FacturaForm() {
         await rpc("update_invoice", { p_invoice_id: id, p_client_id: clienteId, ...comun })
         navigate(`/facturas/${id}`)
       } else {
-        const nuevo = await rpc("create_invoice", { p_client_id: clienteId, ...comun })
+        // p_date solo existe al crear: update_invoice no puede mover
+        // date_created, así que al editar la fecha es de solo lectura.
+        const nuevo = await rpc("create_invoice", {
+          p_client_id: clienteId,
+          p_date: emitida || null,
+          ...comun,
+        })
         navigate(`/facturas/${nuevo}`)
       }
     } catch (e) {
@@ -273,16 +368,16 @@ export default function FacturaForm() {
             <div className="text-[13px] text-neutral-700">
               {editando
                 ? `Emitida ${fecha(original.date_created)} · se reemplazan todos los renglones`
-                : `El folio se asigna al guardar · ${fecha(hoyISO())}`}
+                : "El folio se asigna al guardar"}
             </div>
           </div>
           <button
-            onClick={guardar}
+            onClick={alPulsarGuardar}
             disabled={!puedeGuardar}
             className="boton boton-ink ml-auto"
           >
-            <Check className="size-4" />
-            {guardando ? "Guardando…" : editando ? "Guardar cambios" : "Emitir factura"}
+            <accion.Icono className="size-4" />
+            {guardando ? "Guardando…" : accion.texto}
           </button>
         </div>
 
@@ -313,6 +408,31 @@ export default function FacturaForm() {
               </button>
             </div>
           </div>
+
+          {/* La fecha SOLO se elige al crear: create_invoice acepta p_date pero
+              update_invoice no puede mover date_created. Al editar se enseña
+              en gris para que se vea cuál es sin prometer que se puede cambiar. */}
+          <label className="block casilla px-4 py-2.5">
+            <span className="rotulo">Fecha de emisión</span>
+            {editando ? (
+              <span className="mt-0.5 block text-base tabular-nums text-neutral-700">
+                {fecha(original.date_created)}
+              </span>
+            ) : (
+              <input
+                type="date"
+                value={emitida}
+                // create_invoice rechaza fechas futuras: casi siempre son un
+                // dedazo, y dejarían la factura fuera de todo reporte.
+                max={hoyISO()}
+                onChange={(e) => setEmitida(e.target.value)}
+                className="mt-0.5 w-full bg-transparent text-base tabular-nums outline-none"
+              />
+            )}
+            <span className="text-[11px] text-neutral-700">
+              {editando ? "No se puede cambiar" : "Antedatar sí, adelantar no"}
+            </span>
+          </label>
 
           <label className="block casilla px-4 py-2.5">
             <span className="rotulo">
@@ -396,31 +516,39 @@ export default function FacturaForm() {
           className="flex w-full items-center gap-3 text-left"
         >
           <Ship className="size-[18px] text-neutral-700" />
-          <span className="font-semibold">Datos de embarque</span>
+          <span className="font-semibold">Datos del documento</span>
           <span className="text-[13px] text-neutral-700">
-            {EMBARQUE.filter(([k]) => doc[k]?.trim()).length || "ninguno"}
-            {EMBARQUE.filter(([k]) => doc[k]?.trim()).length ? " capturados" : ""} · opcionales,
+            {CAMPOS_DOC.filter(([k]) => doc[k]?.trim()).length || "ninguno"}
+            {CAMPOS_DOC.filter(([k]) => doc[k]?.trim()).length ? " capturados" : ""} · opcionales,
             solo se imprimen
           </span>
           <span className="ml-auto text-[13px]">{verEmbarque ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {verEmbarque && (
-          <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
-            {EMBARQUE.map(([k, etiqueta, ph]) => (
-              <label key={k} className="block casilla px-4 py-2.5">
-                <span className="rotulo">
-                  {etiqueta}
-                </span>
-                <input
-                  value={doc[k] ?? ""}
-                  onChange={(e) => setDoc({ ...doc, [k]: e.target.value })}
-                  placeholder={ph}
-                  className="mt-0.5 w-full bg-transparent text-base outline-none"
-                />
-              </label>
-            ))}
-          </div>
+          <>
+            <p className="mt-3 mb-0 max-w-[70ch] text-[13px] text-neutral-700">
+              Los tres primeros salen de la ficha del cliente. Escríbelos solo si esta factura
+              debe imprimirse a otro nombre o dirección — el saldo sigue yendo a{" "}
+              {cliente?.name ?? "el cliente"} y el buscador la sigue encontrando por su nombre real.
+            </p>
+            <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
+              {CAMPOS_DOC.map(([k, etiqueta, ph, deCliente]) => (
+                <label key={k} className="block casilla px-4 py-2.5">
+                  <span className="rotulo">{etiqueta}</span>
+                  <input
+                    value={doc[k] ?? ""}
+                    onChange={(e) => setDoc({ ...doc, [k]: e.target.value })}
+                    // Para los alternos el placeholder es el dato REAL del
+                    // cliente: así se ve qué se va a imprimir si se deja en
+                    // blanco, sin tener que explicarlo con un texto de ayuda.
+                    placeholder={deCliente ? (cliente?.[deCliente] ?? "") : ph}
+                    className="mt-0.5 w-full bg-transparent text-base outline-none"
+                  />
+                </label>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -558,7 +686,6 @@ export default function FacturaForm() {
             {visibles.length > 0 && (
               <div className={cn("grid items-end gap-2 px-3 pb-2", GRID[tab], TH)}>
                 <div>{tab === "product" ? "Producto" : "Concepto"}</div>
-                {convierteBultos(tab) && <div>Capturar por</div>}
                 <div className="text-right">
                   Cantidad<span className={SUB}>unidades</span>
                 </div>
@@ -597,35 +724,29 @@ export default function FacturaForm() {
                     />
                   )}
 
-                  {/* Only products convert, so only they choose which field drives. */}
-                  {convierteBultos(l.type) && (
-                    <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
-                      {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
-                        <button
-                          key={m}
-                          onClick={() => set(l.id, { modo: m })}
-                          className={cn(
-                            "px-2 py-1 text-[11px] transition-colors",
-                            m === "bultos" && "border-l border-neutral-300",
-                            l.modo === m ? "bg-ink text-paper" : "text-ink"
-                          )}
-                        >
-                          {etiqueta}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* cantidad — always the raw units that move stock */}
+                  {/* Cantidad y bultos: se escribe en el que se toque.
+                      Antes había una columna aparte con un par de botones
+                      «Cant.|Bultos» de 11px para elegir cuál mandaba. Sobra:
+                      el campo que quieres llenar ya lo estás señalando con el
+                      cursor. Al enfocar el atenuado, pasa a ser el que manda y
+                      el otro se recalcula. */}
                   <input
                     value={l.qty}
                     onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                    onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
                     readOnly={convierteBultos(l.type) && l.modo === "bultos"}
                     inputMode="numeric"
+                    title={
+                      convierteBultos(l.type) && l.modo === "bultos"
+                        ? "Sale de los bultos. Haz clic para escribir unidades."
+                        : undefined
+                    }
                     className={cn(
                       campo,
                       "text-right tabular-nums",
-                      convierteBultos(l.type) && l.modo === "bultos" && "opacity-60"
+                      convierteBultos(l.type) &&
+                        l.modo === "bultos" &&
+                        "cursor-pointer border-dashed text-neutral-700"
                     )}
                   />
 
@@ -634,13 +755,21 @@ export default function FacturaForm() {
                     <input
                       value={l.bultos ?? ""}
                       onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
+                      onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "bultos" })}
                       readOnly={convierteBultos(l.type) && l.modo === "qty"}
                       inputMode="decimal"
                       placeholder={convierteBultos(l.type) ? "" : "—"}
+                      title={
+                        convierteBultos(l.type) && l.modo === "qty"
+                          ? "Sale de las unidades. Haz clic para escribir bultos."
+                          : undefined
+                      }
                       className={cn(
                         campo,
                         "text-right tabular-nums",
-                        convierteBultos(l.type) && l.modo === "qty" && "opacity-60"
+                        convierteBultos(l.type) &&
+                          l.modo === "qty" &&
+                          "cursor-pointer border-dashed text-neutral-700"
                       )}
                     />
                   )}
@@ -725,12 +854,12 @@ export default function FacturaForm() {
           {error && <div className="rounded-md bg-ink p-3 text-[13px] text-paper">{error}</div>}
 
           <button
-            onClick={guardar}
+            onClick={alPulsarGuardar}
             disabled={!puedeGuardar}
             className="boton boton-ink w-full justify-center"
           >
-            <Check className="size-4" />
-            {guardando ? "Guardando…" : "Emitir factura"}
+            <accion.Icono className="size-4" />
+            {guardando ? "Guardando…" : accion.texto}
           </button>
           <div className="text-center text-xs text-neutral-700">
             {lineas.length === 0
@@ -743,6 +872,49 @@ export default function FacturaForm() {
           </div>
         </aside>
       </div>
+
+      <Confirmar
+        abierto={bloqueo.state === "blocked"}
+        titulo="Hay cambios sin guardar"
+        descripcion={
+          editando
+            ? "Si sales ahora, los cambios de esta factura se pierden."
+            : "Si sales ahora, esta factura se pierde entera: todavía no se ha guardado nada."
+        }
+        detalles={
+          lineas.length
+            ? [`${lineas.length} ${lineas.length === 1 ? "renglón capturado" : "renglones capturados"} por ${usd(total)}.`]
+            : []
+        }
+        textoConfirmar="Salir sin guardar"
+        textoOcupado="Saliendo…"
+        onConfirmar={() => bloqueo.proceed?.()}
+        onCancelar={() => bloqueo.reset?.()}
+      />
+
+      {/* Solo para lo irreversible. Guardar un borrador no abre nada: un
+          diálogo que sale siempre es un diálogo que se cierra sin leer. */}
+      <Confirmar
+        abierto={confirmaInventario}
+        titulo={editando ? "Aplicar los cambios al inventario" : "Aplicar esta factura al inventario"}
+        descripcion={
+          editando
+            ? `Se ajustará la existencia por la diferencia contra lo que ${original?.invoice_num ?? "la factura"} tiene guardado.`
+            : `Saldrán del almacén ${n0(aDescontar)} unidades de ${skusTocados} ${skusTocados === 1 ? "SKU" : "SKU distintos"}.`
+        }
+        detalles={
+          cortos.length
+            ? cortos.map(
+                (l) => `${l.sku}: pides ${n0(l.qty)} y hay ${n0(disponible(l, yaReservado))} disponibles.`
+              )
+            : []
+        }
+        textoConfirmar={editando ? "Guardar y aplicar" : "Crear y aplicar"}
+        textoOcupado="Guardando…"
+        ocupado={guardando}
+        onConfirmar={guardar}
+        onCancelar={() => setConfirmaInventario(false)}
+      />
 
       <CrearCliente
         abierto={nuevoCliente}

@@ -186,11 +186,47 @@ test("EXACTNESS: half a cent rounds UP, the way invoicing expects", () => {
   assert.equal(importe(l).toFixed(2), "1.01") // Math.round(1.005*100)/100 gave 1.00
 })
 
-test("adding the same product twice bumps the quantity instead of duplicating", () => {
+test("un producto entra como UN BULTO, no como una pieza suelta", () => {
+  // Aquí se vende por caja. Entrar con 1 pieza obligaba a corregir cada
+  // renglón a mano, y ese «1» es justo el número que se cuela sin que nadie
+  // lo note al revisar la factura.
+  const l = lineaDeProducto(CAJA) // 12 por bulto
+  assert.equal(l.modo, "bultos")
+  assert.equal(l.bultos, 1)
+  assert.equal(l.qty, 12)
+})
+
+test("volver a agregar el mismo SKU sube en la unidad que se está capturando", () => {
+  // En bultos suma un bulto. Antes forzaba modo qty y sumaba una pieza: con
+  // tres bultos capturados quedabas en «3 bultos y 1 pieza», y con el renglón
+  // cambiado de modo a tus espaldas.
   let ls = agregaProducto([], CAJA)
   ls = agregaProducto(ls, CAJA)
   assert.equal(ls.length, 1)
-  assert.equal(ls[0].qty, 2)
+  assert.equal(ls[0].bultos, 2)
+  assert.equal(ls[0].qty, 24)
+  assert.equal(ls[0].modo, "bultos")
+})
+
+test("y si la línea está en piezas, sigue sumando piezas", () => {
+  let ls = agregaProducto([], CAJA)
+  ls = actualiza(ls, ls[0].id, { modo: "qty", qty: 5 })
+  ls = agregaProducto(ls, CAJA)
+  assert.equal(ls[0].qty, 6)
+  assert.equal(ls[0].modo, "qty")
+})
+
+test("al reabrir una factura, los productos vuelven en bultos", () => {
+  // El modo no se guarda en la base; se re-elige el mismo que al capturar.
+  const [prod, cargo] = desdeFilas(
+    [
+      { type: "product", product_id: "p1", qty: 24, bultos: 2, unit_price: "10.00" },
+      { type: "charge", description: "Flete", qty: 1, unit_price: "300.00" },
+    ],
+    [CAJA]
+  )
+  assert.equal(prod.modo, "bultos")
+  assert.equal(cargo.modo, "qty", "un cargo no convierte: bultos no significa nada ahí")
 })
 
 /* ----------------------------------------------------------------- validation */

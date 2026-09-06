@@ -482,8 +482,8 @@ export default function Asistente() {
                 </div>
 
                 <p className="mx-auto mt-6 mb-0 max-w-[52ch] text-[12px] leading-snug text-balance text-neutral-600">
-                  Por ahora solo consulta: no crea ni modifica nada. Si una pregunta no cae en lo
-                  que sabe, lo dice en vez de adivinar.
+                  También puede crear clientes, productos y facturas, y editar facturas — siempre
+                  enseñándote antes qué va a guardar. No borra nada.
                 </p>
               </div>
             </div>

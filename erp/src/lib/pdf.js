@@ -20,6 +20,7 @@ import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 
 import { usd, n2, n0, fecha } from "./format.js"
+import { nombreDoc, direccionDoc, paisDoc } from "./documento"
 import { mul, sumar, centavos } from "./dinero.js"
 import { costeo } from "./costeo.js"
 
@@ -131,9 +132,9 @@ export function pdfFactura(inv, empresa) {
     [
       ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
       ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
-      ["Vendido a:", inv.client_name ?? cli.name, "Consignado a:", inv.consigned_to],
-      ["Dirección:", cli.address, "Despachado:", inv.dispatched],
-      ["País:", cli.country, "Vendedor:", inv.salesperson],
+      ["Vendido a:", nombreDoc(inv, cli), "Consignado a:", inv.consigned_to],
+      ["Dirección:", direccionDoc(inv, cli), "Despachado:", inv.dispatched],
+      ["País:", paisDoc(inv, cli), "Vendedor:", inv.salesperson],
       [
         "Términos de Pago:",
         inv.due_date
@@ -241,7 +242,7 @@ export function pdfPackingList(inv, empresa) {
     const w = doc.getTextWidth(k)
     doc.setFont("helvetica", "normal").text(texto(v), x + w + 2, y)
   }
-  par("NOMBRE:", inv.client_name ?? cli.name, M)
+  par("NOMBRE:", nombreDoc(inv, cli), M)
   y += 6
   par("FECHA:", fecha(inv.date_created), M)
   par("PEDIDO:", inv.purchase_order, M + 62)
@@ -249,7 +250,7 @@ export function pdfPackingList(inv, empresa) {
   y += 6
   par("VENDEDOR:", inv.salesperson, M)
   y += 6
-  par("DIRECCION:", cli.address, M)
+  par("DIRECCION:", direccionDoc(inv, cli), M)
   par("MARCAS:", inv.marks, M + 118)
   y += 6
 

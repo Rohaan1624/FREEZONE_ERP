@@ -43,6 +43,14 @@ const numero = (v) => {
 }
 const redondea = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d
 
+/**
+ * Un producto entra a la factura como UN BULTO, no como una pieza suelta.
+ *
+ * Aquí se vende por bulto: cajas, fardos, docenas. Entrar con `qty: 1` obligaba
+ * a corregir a mano cada renglón —de 1 pieza a las 144 que trae la caja— y ese
+ * "1" es justo el número que se cuela sin que nadie lo note al revisar.
+ * Empezar en 1 bulto acierta el caso normal y deja el raro a un clic.
+ */
 export function lineaDeProducto(p) {
   const piezasPorBulto = Number(p.qty_unit) > 0 ? Number(p.qty_unit) : 1
   return {
@@ -53,9 +61,9 @@ export function lineaDeProducto(p) {
     nombre: p.description || p.sku,
     stock: Number(p.stock ?? 0),
     piezasPorBulto,
-    modo: "qty",
-    qty: 1,
-    bultos: redondea(1 / piezasPorBulto),
+    modo: "bultos",
+    qty: piezasPorBulto,
+    bultos: 1,
     unit: p.unit || "PZA",
     description: "",
     unit_price: p.sale_price ?? "",
@@ -104,12 +112,23 @@ export function sincroniza(linea, patch = {}) {
 
 export const agrega = (lineas, linea) => lineas.concat([linea])
 
-/** Adding a product already on the invoice bumps it instead of duplicating. */
+/**
+ * Adding a product already on the invoice bumps it instead of duplicating.
+ *
+ * Sube en la MISMA unidad en que se está capturando esa línea. Antes forzaba
+ * `modo: "qty"` y sumaba una pieza: quien llevaba tres bultos y volvía a
+ * escanear el SKU se encontraba con 3 bultos y 1 pieza, y con el renglón
+ * cambiado de modo a sus espaldas.
+ */
 export function agregaProducto(lineas, p) {
   const i = lineas.findIndex((l) => l.type === "product" && l.product_id === p.id)
   if (i < 0) return agrega(lineas, lineaDeProducto(p))
   const copia = lineas.slice()
-  copia[i] = sincroniza(copia[i], { qty: numero(copia[i].qty) + 1, modo: "qty" })
+  const l = copia[i]
+  copia[i] =
+    l.modo === "bultos"
+      ? sincroniza(l, { bultos: numero(l.bultos) + 1, modo: "bultos" })
+      : sincroniza(l, { qty: numero(l.qty) + 1, modo: "qty" })
   return copia
 }
 
@@ -194,7 +213,10 @@ export function desdeFilas(filas, productos = []) {
       nombre: p?.description || p?.sku || "",
       stock: Number(p?.stock ?? 0),
       piezasPorBulto: por,
-      modo: "qty",
+      // El modo no se guarda en la base, así que al reabrir se elige el mismo
+      // que al capturar: bultos para un producto. Un cargo o un misceláneo no
+      // convierten, y para ellos «qty» es lo único que significa algo.
+      modo: convierteBultos(r.type) ? "bultos" : "qty",
       qty: r.qty ?? 0,
       // Only a product can have bultos back-filled: rows saved before the
       // column existed can be converted with qty_unit. A miscellaneous line

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { usd, n2, n0, fecha } from "@/lib/format"
 import { mul, sumar, centavos } from "@/lib/dinero"
+import { nombreDoc, direccionDoc, paisDoc } from "@/lib/documento"
 
 /**
  * Printable documents. No PDF library: the browser's own print dialog produces
@@ -70,6 +71,11 @@ export default function FacturaImprimir() {
   }
 
   const cli = inv.client ?? {}
+  // Los mismos respaldos que usa el PDF, importados de pdf.js para que la
+  // vista y el papel no puedan divergir. Ya pasó una vez.
+  const vendidoA = nombreDoc(inv, cli)
+  const direccion = direccionDoc(inv, cli)
+  const pais = paisDoc(inv, cli)
   const emp = empresa ?? {}
   const lineas = inv.transaction ?? []
 
@@ -195,9 +201,9 @@ export default function FacturaImprimir() {
               {[
                 ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
                 ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
-                ["Vendido a:", inv.client_name ?? cli.name, "Consignado a:", inv.consigned_to],
-                ["Dirección:", cli.address, "Despachado:", inv.dispatched],
-                ["País:", cli.country, "Vendedor:", inv.salesperson],
+                ["Vendido a:", vendidoA, "Consignado a:", inv.consigned_to],
+                ["Dirección:", direccion, "Despachado:", inv.dispatched],
+                ["País:", pais, "Vendedor:", inv.salesperson],
                 ["Términos de Pago:", terminos, "Embarcado vía:", inv.shipped_via],
               ].map(([ka, va, kb, vb], i) => (
                 <React.Fragment key={i}>
@@ -298,7 +304,7 @@ export default function FacturaImprimir() {
 
             <div className="mt-4 text-[12px] leading-[1.9]">
               <div>
-                <b>NOMBRE:</b> {inv.client_name ?? cli.name ?? ""}
+                <b>NOMBRE:</b> {vendidoA ?? ""}
               </div>
               <div className="flex flex-wrap gap-x-12">
                 <span>
@@ -316,7 +322,7 @@ export default function FacturaImprimir() {
               </div>
               <div className="flex flex-wrap gap-x-12">
                 <span>
-                  <b>DIRECCION:</b> {cli.address ?? ""}
+                  <b>DIRECCION:</b> {direccion ?? ""}
                 </span>
                 <span>
                   <b>MARCAS:</b> {inv.marks ?? ""}
