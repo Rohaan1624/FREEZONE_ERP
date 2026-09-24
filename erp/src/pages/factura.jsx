@@ -341,8 +341,8 @@ export default function Factura() {
         <div className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] gap-2 border-b border-neutral-300 px-1 pb-2 rotulo">
           <div>Tipo</div>
           <div>Descripción</div>
-          <div className="text-right">Cantidad</div>
           <div className="text-right">Bultos</div>
+          <div className="text-right">Cantidad</div>
           <div>Unidad</div>
           <div className="text-right">Precio</div>
           <div className="text-right">Importe</div>
@@ -364,10 +364,11 @@ export default function Factura() {
                   <div className="text-[11px] text-neutral-700 tabular-nums">{l.product.sku}</div>
                 )}
               </div>
-              <div className="text-right text-sm tabular-nums">{n0(l.qty)}</div>
               <div className="text-right text-sm tabular-nums">
                 {l.bultos == null ? "—" : l.bultos}
               </div>
+              <div className="text-right text-sm tabular-nums">{n0(l.qty)}</div>
+              
               <div className="text-sm">{l.unit || "—"}</div>
               <div className="text-right text-sm tabular-nums">{usd(l.unit_price)}</div>
               <div className="text-right text-[15px] font-semibold tabular-nums">

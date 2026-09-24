@@ -680,20 +680,25 @@ export default function FacturaForm() {
               </div>
             )}
 
-            {/* Column headers. Cantidad and Bultos always sit side by side so
-                it is visible which number is raw units (what moves stock) and
-                which is packages. */}
+            {/* Column headers. BULTOS VA PRIMERO: es la unidad en la que se
+                vende y en la que se captura por defecto, así que es la columna
+                que se lee. Cantidad queda al lado porque es la que mueve
+                existencia, y verlas juntas deja claro cuál es cuál.
+
+                El bloque de bultos es condicional, así que en la pestaña de
+                cargos —que no lleva bultos— Cantidad sigue saliendo primero
+                sin ningún caso especial. */}
             {visibles.length > 0 && (
               <div className={cn("grid items-end gap-2 px-3 pb-2", GRID[tab], TH)}>
                 <div>{tab === "product" ? "Producto" : "Concepto"}</div>
-                <div className="text-right">
-                  Cantidad<span className={SUB}>unidades</span>
-                </div>
                 {llevaBultos(tab) && (
                   <div className="text-right">
                     Bultos<span className={SUB}>paquetes</span>
                   </div>
                 )}
+                <div className="text-right">
+                  Cantidad<span className={SUB}>unidades</span>
+                </div>
                 {llevaBultos(tab) && <div>Unidad</div>}
                 <div className="text-right">{tab === "charge" ? "Monto" : "Precio"}</div>
                 <div className="text-right">Importe</div>
@@ -724,33 +729,17 @@ export default function FacturaForm() {
                     />
                   )}
 
-                  {/* Cantidad y bultos: se escribe en el que se toque.
+                  {/* Bultos y cantidad: se escribe en el que se toque.
                       Antes había una columna aparte con un par de botones
                       «Cant.|Bultos» de 11px para elegir cuál mandaba. Sobra:
                       el campo que quieres llenar ya lo estás señalando con el
                       cursor. Al enfocar el atenuado, pasa a ser el que manda y
-                      el otro se recalcula. */}
-                  <input
-                    value={l.qty}
-                    onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
-                    onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
-                    readOnly={convierteBultos(l.type) && l.modo === "bultos"}
-                    inputMode="numeric"
-                    title={
-                      convierteBultos(l.type) && l.modo === "bultos"
-                        ? "Sale de los bultos. Haz clic para escribir unidades."
-                        : undefined
-                    }
-                    className={cn(
-                      campo,
-                      "text-right tabular-nums",
-                      convierteBultos(l.type) &&
-                        l.modo === "bultos" &&
-                        "cursor-pointer border-dashed text-neutral-700"
-                    )}
-                  />
+                      el otro se recalcula.
 
-                  {/* bultos — derived for products, free for misceláneos, absent for cargos */}
+                      BULTOS PRIMERO, igual que en el encabezado: es la unidad
+                      de venta y la que entra por defecto. Al ser condicional,
+                      un cargo —que no lleva bultos— sigue empezando por la
+                      cantidad sin necesidad de un caso aparte. */}
                   {llevaBultos(l.type) && (
                     <input
                       value={l.bultos ?? ""}
@@ -773,6 +762,27 @@ export default function FacturaForm() {
                       )}
                     />
                   )}
+
+                  {/* cantidad — las unidades reales, que son las que mueven stock */}
+                  <input
+                    value={l.qty}
+                    onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                    onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
+                    readOnly={convierteBultos(l.type) && l.modo === "bultos"}
+                    inputMode="numeric"
+                    title={
+                      convierteBultos(l.type) && l.modo === "bultos"
+                        ? "Sale de los bultos. Haz clic para escribir unidades."
+                        : undefined
+                    }
+                    className={cn(
+                      campo,
+                      "text-right tabular-nums",
+                      convierteBultos(l.type) &&
+                        l.modo === "bultos" &&
+                        "cursor-pointer border-dashed text-neutral-700"
+                    )}
+                  />
 
                   {llevaBultos(l.type) && (
                     <input
