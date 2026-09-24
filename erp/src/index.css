@@ -5,7 +5,8 @@
 
 /* Broadsheet — newsprint ink on paper. Source Serif 4 throughout, no sans for
    UI chrome, no process accents: hierarchy comes from the serif scale, weight
-   and whitespace. Matches the Almacén Miramar invoicing UI. */
+   and whitespace. La referencia es la papelería de una factura impresa, que es
+   lo que esta gente lleva décadas leyendo. */
 @custom-variant dark (&:is(.dark *));
 
 @theme {

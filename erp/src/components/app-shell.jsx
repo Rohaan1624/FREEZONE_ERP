@@ -5,14 +5,18 @@ import { ChartLine, Receipt, Users, Package, Truck, Sparkles, LogOut, Settings }
 import { cn } from "@/lib/utils"
 import { useAuth, RUTA_NUEVA_CLAVE } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
+import { ASISTENTE_ACTIVO } from "@/lib/banderas"
 
+// El asistente solo aparece si su bandera está encendida. Enseñar la pestaña
+// con la función apagada llevaría a una pantalla que redirige sola, que se lee
+// como un bug y no como una decisión.
 const NAV = [
   { to: "/", label: "Resumen", icon: ChartLine, end: true },
   { to: "/facturas", label: "Facturas", icon: Receipt },
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/productos", label: "Productos", icon: Package },
   { to: "/entradas", label: "Entradas", icon: Truck },
-  { to: "/asistente", label: "Asistente", icon: Sparkles },
+  ...(ASISTENTE_ACTIVO ? [{ to: "/asistente", label: "Asistente", icon: Sparkles }] : []),
 ]
 
 export function AppShell() {

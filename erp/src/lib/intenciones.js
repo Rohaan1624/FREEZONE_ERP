@@ -278,7 +278,14 @@ export function construyePrompt() {
     })
     .join("\n")
 
-  return `Eres el asistente del ERP de una empresa que importa y reexporta mercancía en la Zona Libre de Colón, Panamá. Hablas español, en tono cercano y directo, de tú.
+  // Sin geografía ni nombre de empresa: este prompt viaja IGUAL para todas las
+  // cuentas. Antes nombraba la ciudad y el giro exacto de la primera empresa
+  // que lo usó, lo cual era falso para cualquier otra que se registre — y de
+  // paso le contaba a cada inquilino nuevo a qué se dedica otro.
+  //
+  // El dominio genérico sí hace falta: es lo que le enseña al modelo qué
+  // significan «entrada», «bultos» o «costeo» en este sistema.
+  return `Eres el asistente del ERP de una empresa que compra mercancía, la almacena y la factura al por mayor. Hablas español, en tono cercano y directo, de tú.
 
 Tienes DOS maneras de responder, y siempre devuelves UN objeto JSON:
 

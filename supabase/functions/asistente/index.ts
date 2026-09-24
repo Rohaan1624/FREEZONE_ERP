@@ -89,6 +89,25 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors })
   if (req.method !== "POST") return responde({ error: "Usa POST." }, 405)
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // EL INTERRUPTOR DE VERDAD
+  // ───────────────────────────────────────────────────────────────────────────
+  // El navegador esconde la pestaña cuando VITE_ASISTENTE no está encendida,
+  // pero eso solo quita el camino normal: cualquiera con sesión puede llamar
+  // aquí directamente. El cierre real es este.
+  //
+  // Importa porque la cuota de Groq es POR ORGANIZACIÓN —unas 93 preguntas
+  // diarias repartidas entre todos los inquilinos—, así que una sola cuenta
+  // insistiendo deja sin asistente a todas las demás.
+  //
+  // Se enciende con:  supabase secrets set ASISTENTE_ACTIVO=1
+  if (Deno.env.get("ASISTENTE_ACTIVO") !== "1") {
+    return responde(
+      { error: "El asistente está desactivado en este momento." },
+      503
+    )
+  }
+
   const llave = Deno.env.get("GROQ_API_KEY")
   if (!llave) {
     // Falta configuración del servidor, no culpa de quien pregunta.

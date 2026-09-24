@@ -31,6 +31,7 @@ const POR_CODIGO = {
   413: "La pregunta es demasiado larga.",
   500: "Falta configurar GROQ_API_KEY, o no se pudo verificar tu cupo. Revisa los registros de la función.",
   502: "El asistente no pudo responder — revisa que GROQ_MODEL sea un modelo válido.",
+  503: "El asistente está desactivado. Para encenderlo hacen falta las dos banderas: VITE_ASISTENTE=1 al compilar, y supabase secrets set ASISTENTE_ACTIVO=1 en el servidor.",
   504: "El asistente tardó demasiado. Intenta de nuevo.",
 }
 

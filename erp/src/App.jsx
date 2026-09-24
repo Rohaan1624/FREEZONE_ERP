@@ -3,6 +3,7 @@ import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { AppShell } from '@/components/app-shell'
 import { SoloEscritorio } from '@/components/solo-escritorio'
+import { ASISTENTE_ACTIVO } from '@/lib/banderas'
 import Login from '@/pages/login'
 import Facturas from '@/pages/facturas'
 import FacturaForm from '@/pages/factura-form'
@@ -73,7 +74,10 @@ export const router = createBrowserRouter([
           { path: 'entradas/:id', element: <Entrada /> },
           { path: 'empresa', element: <Empresa /> },
           { path: 'importar', element: <Importar /> },
-          { path: 'asistente', element: <Asistente /> },
+          // Apagado mientras la cuota de Groq sea de la organización y no
+          // por cuenta. Ver lib/banderas.js. Sin la ruta, /asistente cae en
+          // el comodín de abajo y redirige al resumen.
+          ...(ASISTENTE_ACTIVO ? [{ path: 'asistente', element: <Asistente /> }] : []),
         ],
       },
 
