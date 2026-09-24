@@ -1,10 +1,10 @@
 import * as React from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, ArrowRight, Pencil, Search } from "lucide-react"
+import { Plus, ArrowRight, Pencil, Search, ListFilter } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
-import { usd, fecha, TONO_TEXTO } from "@/lib/format"
+import { usd, n0, fecha, TONO_TEXTO } from "@/lib/format"
 import { useTotales } from "@/lib/totales"
 import { Paginacion } from "@/components/paginacion"
 import { useDebounce, rango, filtroTexto } from "@/lib/lista"
@@ -25,7 +25,20 @@ import { useDebounce, rango, filtroTexto } from "@/lib/lista"
  * realmente se viene a leer aquí.
  */
 
-const FILTROS = ["Todas", "Borrador", "Pendiente", "Parcial", "Vencida", "Pagada"]
+/**
+ * El filtro por defecto es ABIERTAS, no «Todas».
+ *
+ * Este libro se abre para trabajar, y lo que hay que trabajar es lo que aún no
+ * está cobrado: un borrador a medio capturar, algo vencido que hay que llamar,
+ * un abono parcial. Una factura pagada ya no pide nada de nadie.
+ *
+ * Con «Todas» de salida, y 102 pagadas de 148, lo accionable entra en minoría
+ * en su propia pantalla: hay que filtrar cada vez para ver el trabajo. El
+ * defecto debería ser la pregunta que uno viene a hacer.
+ */
+const ABIERTAS = "Abiertas"
+const TODAS = "Todas"
+const FILTROS = [ABIERTAS, TODAS, "Borrador", "Pendiente", "Parcial", "Vencida", "Pagada"]
 
 // Fechas e importes van todos alineados a la derecha para que formen un solo
 // bloque de cifras contra el margen; el nombre del cliente se queda con la
@@ -37,7 +50,7 @@ export default function Facturas() {
   const navigate = useNavigate()
   const [pagina, setPagina] = React.useState(0)
   const [error, setError] = React.useState("")
-  const [filtro, setFiltro] = React.useState("Todas")
+  const [filtro, setFiltro] = React.useState(ABIERTAS)
   const [busca, setBusca] = React.useState("")
   const q = useDebounce(busca)
 
@@ -59,7 +72,11 @@ export default function Facturas() {
       .order("date_created", { ascending: false })
       .range(...rango(pagina))
 
-    if (filtro !== "Todas") consulta = consulta.eq("estado", filtro)
+    // «Abiertas» se expresa por NEGACIÓN y no listando los cuatro estados: si
+    // mañana se agrega uno nuevo, entra solo en lo abierto en vez de
+    // desaparecer de la vista por defecto sin que nadie lo note.
+    if (filtro === ABIERTAS) consulta = consulta.neq("estado", "Pagada")
+    else if (filtro !== TODAS) consulta = consulta.eq("estado", filtro)
     const f = filtroTexto(q, ["invoice_num", "client_name"])
     if (f) consulta = consulta.or(f)
 
@@ -82,20 +99,48 @@ export default function Facturas() {
 
   // Los totales y los conteos por estado son del LIBRO ENTERO, no de la página.
   const totales = useTotales("totales_facturas")
-  const cuenta = (f) =>
-    f === "Todas" ? totales?.documentos : totales?.por_estado?.[f]
+  const cuenta = (f) => {
+    if (!totales) return null
+    if (f === TODAS) return totales.documentos
+    // Lo abierto es el libro menos lo pagado, por lo mismo que la consulta:
+    // así no hay que acordarse de sumar un estado nuevo en dos sitios.
+    if (f === ABIERTAS) return totales.documentos - (totales.por_estado?.Pagada ?? 0)
+    return totales.por_estado?.[f]
+  }
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <h3 className="m-0 text-[21px] font-semibold">Facturas</h3>
-          <div className="text-[13px] text-neutral-700">
-            {totales ? totales.documentos : "…"} documentos · saldo pendiente{" "}
-            <span className="tabular-nums">{totales ? usd(totales.saldo_pendiente) : "…"}</span>
-          </div>
-        </div>
+        {/* Sin subtítulo de totales: el conteo ya va en el desplegable, y el
+            saldo pendiente vive en el Resumen, que es donde se va a mirar una
+            cifra del negocio. Repetirlo aquí solo daba dos sitios que pueden
+            discrepar. */}
+        <h3 className="m-0 text-[21px] font-semibold">Facturas</h3>
         <div className="ml-auto flex items-center gap-2">
+          {/* Desplegable y no siete pestañas: eran una fila entera de chrome
+              para algo que se toca una vez y se deja quieto, y con el contador
+              al lado competían con las cifras del renglón, que es lo que de
+              verdad se viene a leer. Cerrado ocupa un control y dice en qué
+              filtro estás, que es lo único que hace falta saber de un vistazo. */}
+          <label className="relative">
+            <span className="sr-only">Filtrar por estado</span>
+            <ListFilter className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
+            <select
+              value={filtro}
+              onChange={(e) => {
+                setFiltro(e.target.value)
+                setPagina(0)
+              }}
+              className="entrada-texto cursor-pointer py-0 pr-3 pl-9"
+            >
+              {FILTROS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                  {cuenta(f) == null ? "" : ` (${n0(cuenta(f))})`}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
@@ -118,31 +163,6 @@ export default function Facturas() {
         </div>
       </div>
 
-      {/* Pestañas subrayadas: la fila de píldoras negras pesaba más que los
-          datos y es el gesto que delata una plantilla. */}
-      <div className="flex flex-wrap gap-6 border-b border-neutral-300">
-        {FILTROS.map((f) => (
-          <button
-            key={f}
-            onClick={() => {
-              setFiltro(f)
-              setPagina(0)
-            }}
-            className={cn(
-              "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-[13px] transition-colors",
-              filtro === f
-                ? "border-ink font-semibold text-ink"
-                : "border-transparent text-neutral-600 hover:text-ink"
-            )}
-          >
-            {f}
-            <span className="text-[11px] text-neutral-500 tabular-nums">
-              {cuenta(f) ?? ""}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {error && (
         <div className="registro p-4 text-sm">
           No se pudieron cargar las facturas: {error}
@@ -152,13 +172,17 @@ export default function Facturas() {
 
       {!cargando && !error && filas.length === 0 && (
         <div className="registro p-10 text-center">
+          {/* «No hay nada» y «no hay nada QUE COINCIDA» son dos mensajes
+              distintos, y con el filtro por defecto ya no se distinguen por
+              él: una cuenta recién creada abre en Abiertas y con cero
+              facturas. Lo que lo decide es el total del libro entero. */}
           <div className="text-base font-semibold">
-            {q || filtro !== "Todas" ? "Ningún documento coincide" : "Todavía no hay facturas"}
+            {totales?.documentos === 0 ? "Todavía no hay facturas" : "Ningún documento coincide"}
           </div>
           <div className="mt-1 text-[13px] text-neutral-700">
-            {q || filtro !== "Todas"
-              ? "Prueba con otro filtro o búsqueda."
-              : "Crea la primera con el botón Nueva factura."}
+            {totales?.documentos === 0
+              ? "Crea la primera con el botón Nueva factura."
+              : "Prueba con otro filtro o búsqueda."}
           </div>
         </div>
       )}

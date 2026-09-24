@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import { LogIn, CircleAlert, MailCheck, ArrowLeft, Send } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -155,7 +156,10 @@ export function LoginForm({ className, onEntrar, onRecuperar, ...props }) {
 
               {!recuperando && (
                 <FieldDescription className="text-center">
-                  Las cuentas las crea administración.
+                  ¿No tienes cuenta?{" "}
+                  <Link to="/registro" className="underline underline-offset-2">
+                    Crea una
+                  </Link>
                 </FieldDescription>
               )}
             </FieldGroup>

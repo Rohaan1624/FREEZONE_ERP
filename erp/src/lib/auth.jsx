@@ -1,5 +1,6 @@
 import * as React from "react"
 import { supabase } from "@/lib/supabase"
+import { traducirError } from "@/lib/errores-auth"
 
 const AuthContext = React.createContext(null)
 
@@ -48,6 +49,46 @@ export function AuthProvider({ children }) {
       },
 
       /**
+       * Alta de una cuenta NUEVA, con su empresa.
+       *
+       * ───────────────────────────────────────────────────────────────────────
+       * `company_name` NO es un nombre cualquiera
+       * ───────────────────────────────────────────────────────────────────────
+       * El trigger handle_new_user de functions.sql lee exactamente esa clave
+       * de raw_user_meta_data para crear la fila de `company`, que es lo que
+       * convierte a un usuario suelto en un inquilino con su propia
+       * numeración de facturas. Si se escribe distinto, el alta funciona pero
+       * la empresa nace llamándose «My Company» y nadie entiende por qué.
+       *
+       * ───────────────────────────────────────────────────────────────────────
+       * DEVUELVE SI HAY QUE CONFIRMAR, Y NO DICE SI EL CORREO YA EXISTÍA
+       * ───────────────────────────────────────────────────────────────────────
+       * Con la confirmación por correo activada, Supabase no entrega sesión:
+       * `session` viene en null y la persona tiene que abrir el enlace. Por eso
+       * se devuelve un booleano en vez de asumir que ya entró.
+       *
+       * Y con un correo YA REGISTRADO, Supabase tampoco falla: responde un
+       * usuario con `identities` vacío. Eso es a propósito —si fallara, esta
+       * pantalla serviría para averiguar quién tiene cuenta— así que aquí se
+       * trata igual que un alta buena, misma respuesta y mismo mensaje. Es la
+       * misma regla que ya sigue pedirRecuperacion().
+       */
+      async registrar(email, clave, empresa) {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: clave,
+          options: {
+            data: { company_name: empresa.trim() },
+            // Al confirmar, el enlace devuelve a la app con la sesión en el
+            // hash; supabase-js la recoge sola y AuthProvider la ve.
+            emailRedirectTo: window.location.origin,
+          },
+        })
+        if (error) throw new Error(traducirError(error.message))
+        return { debeConfirmar: !data.session }
+      },
+
+      /**
        * Sends the reset email. Deliberately does NOT reveal whether the address
        * exists — Supabase returns success either way, and so do we, so this
        * cannot be used to enumerate who has an account.
@@ -80,19 +121,4 @@ export function useAuth() {
   const ctx = React.useContext(AuthContext)
   if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>")
   return ctx
-}
-
-function traducirError(mensaje) {
-  if (/Invalid login credentials/i.test(mensaje)) return "Correo o contraseña incorrectos."
-  if (/Email not confirmed/i.test(mensaje)) return "Confirma tu correo antes de entrar."
-  if (/Password should be/i.test(mensaje)) return "La contraseña debe tener al menos 6 caracteres."
-  if (/New password should be different/i.test(mensaje))
-    return "La contraseña nueva debe ser distinta de la anterior."
-  if (/Auth session missing|session_not_found/i.test(mensaje))
-    return "El enlace expiró. Pide uno nuevo desde “¿Olvidaste tu contraseña?”."
-  if (/For security purposes|rate limit|too many/i.test(mensaje))
-    return "Demasiados intentos seguidos. Espera un minuto y vuelve a intentar."
-  if (/Signups not allowed/i.test(mensaje))
-    return "Los registros están cerrados. Pide a administración que cree tu cuenta."
-  return mensaje
 }

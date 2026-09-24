@@ -5,6 +5,7 @@ import { AppShell } from '@/components/app-shell'
 import { SoloEscritorio } from '@/components/solo-escritorio'
 import { ASISTENTE_ACTIVO } from '@/lib/banderas'
 import Login from '@/pages/login'
+import Registro from '@/pages/registro'
 import Facturas from '@/pages/facturas'
 import FacturaForm from '@/pages/factura-form'
 import NuevaClave from '@/pages/nueva-clave'
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/login', element: <Login /> },
+      { path: '/registro', element: <Registro /> },
       // Target of the password-reset email link
       { path: '/nueva-clave', element: <NuevaClave /> },
 
