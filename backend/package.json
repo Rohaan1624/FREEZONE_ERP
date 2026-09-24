@@ -1,0 +1,16 @@
+{
+  "name": "erp-backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Esquema y funciones de Postgres del ERP, con sus pruebas.",
+  "scripts": {
+    "pretest": "node test/preparar.mjs",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.mjs\"",
+    "db:recrear": "node test/preparar.mjs --recrear",
+    "db:parar": "docker rm -f pg_erp_pruebas"
+  },
+  "devDependencies": {
+    "pg": "^8.13.1"
+  }
+}

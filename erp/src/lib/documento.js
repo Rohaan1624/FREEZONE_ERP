@@ -4,14 +4,18 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * LA CASCADA, Y POR QUÉ ESE ORDEN
  * ─────────────────────────────────────────────────────────────────────────────
- *   bill_to_*    lo que se escribió PARA ESTE documento (migration-005)
- *   client_name  el nombre del cliente, congelado al emitir
- *   client.*     la ficha viva, que es lo que había antes de todo esto
+ *   bill_to_*    lo que alguien ESCRIBIÓ para este documento (migration-005)
+ *   client_*     lo que decía la ficha AL EMITIR, congelado (migration-006)
+ *   client.*     la ficha viva — solo para las facturas anteriores a 006
  *
- * La dirección y el país salían en vivo de la ficha del cliente, así que mudar
- * a un cliente reescribía la dirección de TODAS sus facturas históricas: el
- * papel dejaba de coincidir con lo que se entregó. Con bill_to_address puesto,
- * esa factura ya no se mueve nunca más.
+ * Los dos primeros parecen lo mismo y no lo son. `bill_to_*` es una decisión
+ * («esta factura va a nombre de la sucursal»); `client_*` es un hecho histórico
+ * («esto es lo que decía la ficha ese día»). Por eso son columnas distintas:
+ * quitar el alterno debe devolver el dato del día de la emisión, no el de hoy.
+ *
+ * El respaldo a la ficha viva se queda para las facturas emitidas antes de que
+ * existiera el congelado y que la migración no pudo rellenar. Para todo lo
+ * nuevo, mudar a un cliente ya no reescribe ni un papel.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * POR QUÉ UN MÓDULO PROPIO Y NO pdf.js
@@ -28,5 +32,7 @@
  */
 
 export const nombreDoc = (inv, cli = {}) => inv.bill_to_name ?? inv.client_name ?? cli.name
-export const direccionDoc = (inv, cli = {}) => inv.bill_to_address ?? cli.address
-export const paisDoc = (inv, cli = {}) => inv.bill_to_country ?? cli.country
+export const direccionDoc = (inv, cli = {}) =>
+  inv.bill_to_address ?? inv.client_address ?? cli.address
+export const paisDoc = (inv, cli = {}) =>
+  inv.bill_to_country ?? inv.client_country ?? cli.country

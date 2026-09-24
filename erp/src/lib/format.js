@@ -25,10 +25,10 @@ export function masDias(iso, dias) {
 }
 
 /** Days an invoice is past due. Negative = not due yet. */
-export function diasVencido(dueISO) {
+export function diasVencido(dueISO, hoy = new Date()) {
   if (!dueISO) return 0
   const [y, m, d] = dueISO.slice(0, 10).split("-").map(Number)
-  return Math.round((new Date() - new Date(y, m - 1, d)) / 86400000)
+  return Math.round((hoy - new Date(y, m - 1, d)) / 86400000)
 }
 
 /**

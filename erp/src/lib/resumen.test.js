@@ -83,7 +83,7 @@ test("antigüedad buckets by days overdue and skips paid invoices", () => {
     inv({ total: 100, due_date: "2026-01-10" }), // +60
     inv({ total: 100, due_date: "2026-01-10", payments: [{ amount: 100 }] }), // pagada
     inv({ total: 999, due_date: "2020-01-01", status: "draft" }), // borrador
-  ])
+  ], HOY)
   assert.deepEqual(
     a.map((x) => x.v.toFixed(2)),
     ["100.00", "100.00", "100.00", "100.00"]
@@ -91,7 +91,7 @@ test("antigüedad buckets by days overdue and skips paid invoices", () => {
 })
 
 test("a partial payment ages only the outstanding balance", () => {
-  const a = antiguedad([inv({ total: 100, due_date: "2026-08-10", payments: [{ amount: 70 }] })])
+  const a = antiguedad([inv({ total: 100, due_date: "2026-08-10", payments: [{ amount: 70 }] })], HOY)
   assert.equal(a[1].v.toFixed(2), "30.00")
 })
 

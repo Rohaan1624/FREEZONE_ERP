@@ -111,14 +111,14 @@ export function variacion(actual, previo) {
  */
 const ETIQUETAS_EDAD = ["Por vencer", "1 – 30 días", "31 – 60 días", "+ 60 días"]
 
-export function antiguedad(facturas) {
+export function antiguedad(facturas, hoy = new Date()) {
   const cubos = ETIQUETAS_EDAD.map((k) => ({ k, v: M(0) }))
   for (const f of facturas) {
     if (f.status === "draft") continue
     const pagado = sumar(f.payments ?? [], (p) => p.amount)
     const saldo = centavos(sub(f.total, pagado))
     if (saldo.lte(0)) continue
-    const d = diasVencido(f.due_date)
+    const d = diasVencido(f.due_date, hoy)
     const i = d <= 0 ? 0 : d <= 30 ? 1 : d <= 60 ? 2 : 3
     cubos[i].v = add(cubos[i].v, saldo)
   }

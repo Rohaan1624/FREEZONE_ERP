@@ -295,11 +295,15 @@ begin
   -- Van aparte de client_name a propósito: esa columna la lee el buscador de
   -- facturas, así que un nombre alterno ahí haría que buscar por el nombre
   -- real del cliente dejara de encontrar la factura. Ver migration-005.
+  -- client_name/address/country se congelan de la ficha AL EMITIR. Que el
+  -- cliente se mude después no debe reescribir esta factura: el papel dice a
+  -- dónde se mandó la mercancía entonces, no dónde está el cliente hoy.
   insert into public.invoice
-    (invoice_num, client_id, client_name, user_id, status, notes, due_date, date_created,
+    (invoice_num, client_id, client_name, client_address, client_country,
+     user_id, status, notes, due_date, date_created,
      purchase_order, salesperson, consigned_to, marks, dispatched, shipped_via,
      bill_to_name, bill_to_address, bill_to_country)
-  select v_num, c.id, c.name, v_uid, p_status, p_notes, v_due,
+  select v_num, c.id, c.name, c.address, c.country, v_uid, p_status, p_notes, v_due,
          coalesce(p_date::timestamptz, now()),
          nullif(p_doc ->> 'purchase_order', ''),
          nullif(p_doc ->> 'salesperson', ''),
@@ -458,28 +462,35 @@ begin
     update public.invoice set due_date = p_due_date where id = p_invoice_id;
   end if;
 
-  -- coalesce por clave: lo que no venga en p_doc se queda como está, así que
-  -- un formulario parcial nunca borra datos que no mostraba.
+  -- Por CLAVE PRESENTE, no por valor. Se distingue «no me mandaron la clave»
+  -- (no tocar, para que un formulario parcial no borre lo que no mostraba) de
+  -- «me la mandaron vacía» (borrar, porque eso es lo que pidió quien la vació).
   --
-  -- OJO con la diferencia entre los dos bloques de abajo, es deliberada.
-  --
-  -- Los de EMBARQUE usan coalesce: mandar "" restaura el valor viejo, o sea que
-  -- una vez puestos no se pueden borrar. Se conserva ese comportamiento.
-  --
-  -- Los bill_to_* NO pueden funcionar así. Ahí vacío significa algo concreto —
-  -- «deja de imprimir el nombre alterno y vuelve al del cliente»— y con
-  -- coalesce esa marcha atrás sería imposible: quien se equivocara al escribir
-  -- la razón social se quedaría con ella pegada al documento para siempre.
-  -- Con `p_doc ? clave` se distingue «no me mandaron la clave» (no tocar) de
-  -- «me la mandaron vacía» (limpiar).
+  -- Antes los seis de embarque usaban `coalesce(nullif(x,''), columna)`, que
+  -- hace lo primero pero no lo segundo: vaciar el campo mandaba '', nullif lo
+  -- volvía NULL y el coalesce restauraba el valor viejo. Resultado: una vez
+  -- puesto un vendedor o unas marcas, no había forma de quitarlos desde la
+  -- aplicación. Quedaban pegados al documento para siempre.
   if p_doc is not null then
     update public.invoice
-       set purchase_order = coalesce(nullif(p_doc ->> 'purchase_order', ''), purchase_order),
-           salesperson    = coalesce(nullif(p_doc ->> 'salesperson', ''),    salesperson),
-           consigned_to   = coalesce(nullif(p_doc ->> 'consigned_to', ''),   consigned_to),
-           marks          = coalesce(nullif(p_doc ->> 'marks', ''),          marks),
-           dispatched     = coalesce(nullif(p_doc ->> 'dispatched', ''),     dispatched),
-           shipped_via    = coalesce(nullif(p_doc ->> 'shipped_via', ''),    shipped_via),
+       set purchase_order = case when p_doc ? 'purchase_order'
+                                 then nullif(p_doc ->> 'purchase_order', '')
+                                 else purchase_order end,
+           salesperson    = case when p_doc ? 'salesperson'
+                                 then nullif(p_doc ->> 'salesperson', '')
+                                 else salesperson end,
+           consigned_to   = case when p_doc ? 'consigned_to'
+                                 then nullif(p_doc ->> 'consigned_to', '')
+                                 else consigned_to end,
+           marks          = case when p_doc ? 'marks'
+                                 then nullif(p_doc ->> 'marks', '')
+                                 else marks end,
+           dispatched     = case when p_doc ? 'dispatched'
+                                 then nullif(p_doc ->> 'dispatched', '')
+                                 else dispatched end,
+           shipped_via    = case when p_doc ? 'shipped_via'
+                                 then nullif(p_doc ->> 'shipped_via', '')
+                                 else shipped_via end,
            bill_to_name    = case when p_doc ? 'bill_to_name'
                                   then nullif(p_doc ->> 'bill_to_name', '')
                                   else bill_to_name end,
@@ -492,10 +503,16 @@ begin
      where id = p_invoice_id;
   end if;
 
-  -- Re-point at a different client, re-snapshotting client_name with it.
+  -- Re-point at a different client, re-snapshotting its frozen data with it.
+  -- Si la factura pasa a otro cliente, la dirección congelada tiene que ser la
+  -- del cliente NUEVO; dejar la anterior imprimiría el domicilio de alguien que
+  -- ya no tiene nada que ver con este documento.
   if p_client_id is not null then
     update public.invoice i
-       set client_id = c.id, client_name = c.name
+       set client_id      = c.id,
+           client_name    = c.name,
+           client_address = c.address,
+           client_country = c.country
       from public.client c
      where i.id = p_invoice_id
        and c.id = p_client_id
