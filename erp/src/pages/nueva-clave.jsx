@@ -33,7 +33,7 @@ export default function NuevaClave() {
     setGuardando(true)
     try {
       await cambiarClave(clave)
-      navigate("/", { replace: true })
+      navigate("/resumen", { replace: true })
     } catch (e) {
       setError(e.message)
     } finally {

@@ -538,7 +538,7 @@ const EJECUTORES = {
       previo.eq(0)
         ? `${n0(r.numFacturas)} facturas`
         : `${n0(r.numFacturas)} facturas · ${usd(previo)} en ${r.barras.anioPrevio}`,
-      "/"
+      "/resumen"
     )
   },
 
@@ -556,7 +556,7 @@ const EJECUTORES = {
         { k: "importeTxt", etiqueta: "Importe", align: "right" },
       ],
       r.top.map((t) => ({ ...t, unidadesTxt: n0(t.unidades), importeTxt: usd(t.importe) })),
-      { vacio: "Sin ventas de productos en el periodo.", enlace: "/" }
+      { vacio: "Sin ventas de productos en el periodo.", enlace: "/resumen" }
     )
   },
 

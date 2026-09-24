@@ -11,7 +11,7 @@ import { ASISTENTE_ACTIVO } from "@/lib/banderas"
 // con la función apagada llevaría a una pantalla que redirige sola, que se lee
 // como un bug y no como una decisión.
 const NAV = [
-  { to: "/", label: "Resumen", icon: ChartLine, end: true },
+  { to: "/resumen", label: "Resumen", icon: ChartLine },
   { to: "/facturas", label: "Facturas", icon: Receipt },
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/productos", label: "Productos", icon: Package },

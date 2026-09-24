@@ -1,27 +1,28 @@
-import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 
-import { AuthProvider } from '@/lib/auth'
-import { AppShell } from '@/components/app-shell'
-import { SoloEscritorio } from '@/components/solo-escritorio'
-import { ASISTENTE_ACTIVO } from '@/lib/banderas'
-import Login from '@/pages/login'
-import Registro from '@/pages/registro'
-import Facturas from '@/pages/facturas'
-import FacturaForm from '@/pages/factura-form'
-import NuevaClave from '@/pages/nueva-clave'
-import Empresa from '@/pages/empresa'
-import Clientes from '@/pages/clientes'
-import Cliente from '@/pages/cliente'
-import Productos from '@/pages/productos'
-import Producto from '@/pages/producto'
-import Factura from '@/pages/factura'
-import FacturaImprimir from '@/pages/factura-imprimir'
-import Entradas from '@/pages/entradas'
-import Entrada from '@/pages/entrada'
-import Ajustes from '@/pages/ajustes'
-import Resumen from '@/pages/resumen'
-import Importar from '@/pages/importar'
-import Asistente from '@/pages/asistente'
+import { AuthProvider } from "@/lib/auth";
+import { AppShell } from "@/components/app-shell";
+import { SoloEscritorio } from "@/components/solo-escritorio";
+import { ASISTENTE_ACTIVO } from "@/lib/banderas";
+import Inicio from "@/pages/inicio";
+import Login from "@/pages/login";
+import Registro from "@/pages/registro";
+import Facturas from "@/pages/facturas";
+import FacturaForm from "@/pages/factura-form";
+import NuevaClave from "@/pages/nueva-clave";
+import Empresa from "@/pages/empresa";
+import Clientes from "@/pages/clientes";
+import Cliente from "@/pages/cliente";
+import Productos from "@/pages/productos";
+import Producto from "@/pages/producto";
+import Factura from "@/pages/factura";
+import FacturaImprimir from "@/pages/factura-imprimir";
+import Entradas from "@/pages/entradas";
+import Entrada from "@/pages/entrada";
+import Ajustes from "@/pages/ajustes";
+import Resumen from "@/pages/resumen";
+import Importar from "@/pages/importar";
+import Asistente from "@/pages/asistente";
 
 /**
  * Data router, no <BrowserRouter><Routes>.
@@ -40,50 +41,69 @@ import Asistente from '@/pages/asistente'
  */
 export const router = createBrowserRouter([
   {
-    // SoloEscritorio va POR FUERA de AuthProvider a propósito: el muro tiene
-    // que salir también en /login, o alguien entra desde el teléfono, ve la
-    // sesión iniciada y se topa con la pared después de escribir la clave.
     element: (
-      <SoloEscritorio>
-        <AuthProvider>
-          <Outlet />
-        </AuthProvider>
-      </SoloEscritorio>
+      <AuthProvider>
+        <Outlet />
+      </AuthProvider>
     ),
     children: [
-      { path: '/login', element: <Login /> },
-      { path: '/registro', element: <Registro /> },
-      // Target of the password-reset email link
-      { path: '/nueva-clave', element: <NuevaClave /> },
+      // La raíz es PÚBLICA y, a diferencia de todo lo demás, NO lleva el muro
+      // de escritorio: es la página que se comparte por WhatsApp, y casi todo
+      // el que reciba el enlace lo va a abrir en el teléfono. Enseñarle una
+      // pared en vez de la propuesta sería perder justo a quien venía a mirar.
+      //
+      // Que el sistema en sí pida computadora ya se lo dice el muro cuando
+      // pulse «Acceder», que es el momento en que esa información le sirve.
+      { path: "/", element: <Inicio /> },
 
-      // AppShell redirects to /login when there is no session
       {
-        element: <AppShell />,
+        // Todo lo que ES la aplicación sí queda detrás del muro, incluidos
+        // login y registro: entrar desde el teléfono para toparse con la
+        // pared justo después de escribir la contraseña es peor que no dejar
+        // entrar.
+        element: (
+          <SoloEscritorio>
+            <Outlet />
+          </SoloEscritorio>
+        ),
         children: [
-          { index: true, element: <Resumen /> },
-          { path: 'facturas', element: <Facturas /> },
-          { path: 'facturas/nueva', element: <FacturaForm /> },
-          { path: 'facturas/:id', element: <Factura /> },
-          { path: 'facturas/:id/editar', element: <FacturaForm /> },
-          { path: 'facturas/:id/imprimir', element: <FacturaImprimir /> },
-          { path: 'clientes', element: <Clientes /> },
-          { path: 'clientes/:id', element: <Cliente /> },
-          { path: 'productos', element: <Productos /> },
-          { path: 'productos/:id', element: <Producto /> },
-          { path: 'entradas', element: <Entradas /> },
-          { path: 'entradas/nueva', element: <Entrada /> },
-          { path: 'entradas/ajustes', element: <Ajustes /> },
-          { path: 'entradas/:id', element: <Entrada /> },
-          { path: 'empresa', element: <Empresa /> },
-          { path: 'importar', element: <Importar /> },
-          // Apagado mientras la cuota de Groq sea de la organización y no
-          // por cuenta. Ver lib/banderas.js. Sin la ruta, /asistente cae en
-          // el comodín de abajo y redirige al resumen.
-          ...(ASISTENTE_ACTIVO ? [{ path: 'asistente', element: <Asistente /> }] : []),
+          { path: "/login", element: <Login /> },
+          { path: "/registro", element: <Registro /> },
+          // Target of the password-reset email link
+          { path: "/nueva-clave", element: <NuevaClave /> },
+
+          // AppShell redirects to /login when there is no session
+          {
+            element: <AppShell />,
+            children: [
+              { path: "resumen", element: <Resumen /> },
+              { path: "facturas", element: <Facturas /> },
+              { path: "facturas/nueva", element: <FacturaForm /> },
+              { path: "facturas/:id", element: <Factura /> },
+              { path: "facturas/:id/editar", element: <FacturaForm /> },
+              { path: "facturas/:id/imprimir", element: <FacturaImprimir /> },
+              { path: "clientes", element: <Clientes /> },
+              { path: "clientes/:id", element: <Cliente /> },
+              { path: "productos", element: <Productos /> },
+              { path: "productos/:id", element: <Producto /> },
+              { path: "entradas", element: <Entradas /> },
+              { path: "entradas/nueva", element: <Entrada /> },
+              { path: "entradas/ajustes", element: <Ajustes /> },
+              { path: "entradas/:id", element: <Entrada /> },
+              { path: "empresa", element: <Empresa /> },
+              { path: "importar", element: <Importar /> },
+              // Apagado mientras la cuota de Groq sea de la organización y no
+              // por cuenta. Ver lib/banderas.js. Sin la ruta, /asistente cae en
+              // el comodín de abajo y redirige al resumen.
+              ...(ASISTENTE_ACTIVO
+                ? [{ path: "asistente", element: <Asistente /> }]
+                : []),
+            ],
+          },
+
+          { path: "*", element: <Navigate to="/" replace /> },
         ],
       },
-
-      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-])
+]);

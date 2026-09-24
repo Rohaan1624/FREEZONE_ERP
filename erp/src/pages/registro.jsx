@@ -11,7 +11,7 @@ export default function Registro() {
   // así que hay que mirarlo antes que `session` o alguien que viene a cambiar
   // su contraseña acabaría en el panel con la vieja todavía funcionando.
   if (recuperando) return <Navigate to={RUTA_NUEVA_CLAVE} replace />
-  if (session) return <Navigate to="/" replace />
+  if (session) return <Navigate to="/resumen" replace />
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">

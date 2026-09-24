@@ -8,7 +8,7 @@ export default function Login() {
   if (cargando) return null
   // A recovery link signs the user in for real, so check this BEFORE session.
   if (recuperando) return <Navigate to={RUTA_NUEVA_CLAVE} replace />
-  if (session) return <Navigate to="/" replace />
+  if (session) return <Navigate to="/resumen" replace />
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">

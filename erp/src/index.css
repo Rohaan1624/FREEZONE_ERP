@@ -359,3 +359,113 @@
     display: table-header-group; /* repite el encabezado en cada página */
   }
 }
+
+/* ------------------------------------------------- portada pública ------ */
+/* La portada es la única pantalla en sans: es la cara de venta, no el
+   documento de trabajo, y el resto del sistema sigue en serif. */
+.portada {
+  font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+}
+/* En capa base para que las clases de color de cada enlace sigan ganando: la
+   regla global de `a` pinta tinta, que sobre fondo oscuro no se ve. */
+@layer base {
+  .portada a { color: inherit; }
+  .portada a:hover { text-decoration-line: none; }
+}
+
+/* El mapa (components/mapa-comercio.jsx). Dos colores y nada más: ámbar lo
+   que entra de Asia, celeste lo que sale a Latinoamérica.
+
+   Se anima con CSS y no con SMIL ni con un bucle de JavaScript por una razón
+   concreta: así `prefers-reduced-motion` puede pararlo. Quien tenga el sistema
+   configurado para no ver movimiento sigue viendo el dibujo completo. */
+.portada svg { --mc-entra: #fcd34d; --mc-sale: #38bdf8; }
+
+.mc-ruta { stroke-width: 1.5; opacity: 0.22; }
+.mc-ruta-entra { stroke: var(--mc-entra); }
+.mc-ruta-sale  { stroke: var(--mc-sale); }
+
+/* El guion que viaja por la ruta. El dasharray largo deja un solo trazo corto
+   visible y el offset lo empuja de punta a punta; la salida invierte el
+   sentido. Es lo que convierte una línea en una dirección. */
+.mc-pulso {
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 60 2000;
+  animation: mc-viaje 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.mc-pulso-entra {
+  stroke: var(--mc-entra);
+  stroke-dashoffset: 2060;
+  animation-name: mc-viaje;
+  filter: drop-shadow(0 0 6px var(--mc-entra));
+}
+.mc-pulso-sale {
+  stroke: var(--mc-sale);
+  stroke-dashoffset: 0;
+  animation-name: mc-viaje-inverso;
+  filter: drop-shadow(0 0 6px var(--mc-sale));
+}
+
+@keyframes mc-viaje {
+  from { stroke-dashoffset: 2060; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes mc-viaje-inverso {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 2060; }
+}
+
+.mc-nodo-entra { --mc-color: var(--mc-entra); }
+.mc-nodo-sale  { --mc-color: var(--mc-sale); }
+.mc-nodo circle { fill: var(--mc-color); }
+.mc-nodo .mc-nodo-aro { opacity: 0.15; }
+.mc-etiqueta {
+  fill: #fff;
+  opacity: 0.85;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.mc-hub { fill: #fff; filter: drop-shadow(0 0 10px #fff); }
+.mc-hub-texto {
+  fill: #fff;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+
+/* Las dos ondas salen con medio ciclo de diferencia: eso hace que el pulso se
+   lea como continuo y no como un parpadeo. */
+.mc-hub-onda {
+  stroke: #fff;
+  stroke-width: 1.5;
+  transform-origin: 600px 280px;
+  animation: mc-onda 3.4s ease-out infinite;
+}
+.mc-hub-onda-2 { animation-delay: 1.7s; }
+
+@keyframes mc-onda {
+  from { transform: scale(0.42); opacity: 0.7; }
+  to   { transform: scale(3.1);  opacity: 0; }
+}
+
+.mc-halo-centro { stop-color: #fff; stop-opacity: 0.14; }
+.mc-halo-borde  { stop-color: #fff; stop-opacity: 0; }
+
+/* En un teléfono el SVG se encoge a un tercio: sin esto las etiquetas
+   quedarían en 7px. */
+@media (max-width: 640px) {
+  .mc-etiqueta { font-size: 38px; }
+  .mc-hub-texto { font-size: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sin movimiento, pero NO sin dibujo: las rutas y los nodos siguen ahí y el
+     guion se queda quieto a media ruta, que sigue indicando el sentido. */
+  .mc-pulso,
+  .mc-hub-onda { animation: none; }
+  .mc-pulso { stroke-dashoffset: 1000; }
+  .mc-hub-onda { opacity: 0.25; }
+}
+
