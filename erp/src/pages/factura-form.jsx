@@ -364,7 +364,7 @@ export default function FacturaForm() {
         {editando ? "Descartar cambios" : "Cancelar y volver"}
       </Link>
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
             <div className="rotulo">
@@ -511,14 +511,15 @@ export default function FacturaForm() {
       {/* Datos de embarque — colapsado por defecto: son opcionales y la mayoría
           de las facturas no los usan, pero cuando hacen falta salen impresos
           tanto en la factura como en el packing list. */}
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <button
           onClick={() => setVerEmbarque((v) => !v)}
           className="flex w-full items-center gap-3 text-left"
         >
-          <Ship className="size-[18px] text-neutral-700" />
+          <Ship className="size-[18px] shrink-0 text-neutral-700" />
           <span className="font-semibold">Datos del documento</span>
-          <span className="text-[13px] text-neutral-700">
+          {/* En el teléfono basta con el título y Mostrar: la explicación no cabe. */}
+          <span className="hidden text-[13px] text-neutral-700 md:inline">
             {CAMPOS_DOC.filter(([k]) => doc[k]?.trim()).length || "ninguno"}
             {CAMPOS_DOC.filter(([k]) => doc[k]?.trim()).length ? " capturados" : ""} · opcionales,
             solo se imprimen
@@ -555,11 +556,11 @@ export default function FacturaForm() {
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.56fr)]">
         <div className="flex flex-col gap-3">
-          <section className="registro p-6">
+          <section className="registro p-4 md:p-6">
             {/* Pestañas arriba y las acciones en su propio renglón, centradas.
                 Al buscar, la caja ocupa todo el ancho. */}
             <div className="mb-4 flex flex-col items-start gap-3">
-              <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
+              <div className="flex w-full overflow-hidden rounded-md border border-neutral-300 md:inline-flex md:w-auto">
                 {TABS.map(({ id, label, icon: Icon }, i) => (
                   <button
                     key={id}
@@ -568,12 +569,12 @@ export default function FacturaForm() {
                       cerrarBusqueda()
                     }}
                     className={cn(
-                      "flex items-center gap-1.5 px-4 py-1.5 text-[13px] transition-colors",
+                      "flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5 text-[13px] transition-colors md:flex-none md:px-4",
                       i > 0 && "border-l border-neutral-300",
                       tab === id ? "bg-ink text-paper" : "text-ink"
                     )}
                   >
-                    <Icon className="size-4" />
+                    <Icon className="hidden size-4 md:block" />
                     {label} {cuenta(id)}
                   </button>
                 ))}
@@ -605,7 +606,7 @@ export default function FacturaForm() {
                   />
                 </div>
               ) : tab === "product" ? (
-                <div className="flex items-center gap-2 self-center">
+                <div className="flex flex-wrap items-center justify-center gap-2 self-center">
                   <button
                     onClick={() => setBuscando(true)}
                     className="boton boton-claro shrink-0 gap-1.5 text-[13px]"
@@ -708,131 +709,133 @@ export default function FacturaForm() {
                 El bloque de bultos es condicional, así que en la pestaña de
                 cargos —que no lleva bultos— Cantidad sigue saliendo primero
                 sin ningún caso especial. */}
-            {visibles.length > 0 && (
-              <div className={cn("grid items-end gap-2 px-3 pb-2", GRID[tab], TH)}>
-                <div>{tab === "product" ? "Producto" : "Concepto"}</div>
-                {llevaBultos(tab) && (
-                  <div className="text-right">
-                    Bultos<span className={SUB}>paquetes</span>
-                  </div>
-                )}
-                <div className="text-right">
-                  Cantidad<span className={SUB}>unidades</span>
-                </div>
-                {llevaBultos(tab) && <div>Unidad</div>}
-                <div className="text-right">{tab === "charge" ? "Monto" : "Precio"}</div>
-                <div className="text-right">Importe</div>
-                <div />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {visibles.map((l) => (
-                <div key={l.id} className={cn("grid items-center gap-2 casilla p-3", GRID[l.type])}>
-                  {/* concepto */}
-                  {l.type === "product" ? (
-                    <div className="min-w-0">
-                      <div className="truncate text-sm">{l.nombre}</div>
-                      <div className="text-[11px] text-neutral-700 tabular-nums">
-                        {l.sku} ·{" "}
-                        {descontar && Number(l.qty) > disponible(l, yaReservado)
-                          ? `excede disponible (${n0(disponible(l, yaReservado))})`
-                          : `${l.piezasPorBulto} por bulto · disp. ${n0(disponible(l, yaReservado))}`}
-                      </div>
+            <div className="tabla-desliza" style={{ "--ancho-tabla": "640px" }}>
+              {visibles.length > 0 && (
+                <div className={cn("grid items-end gap-2 px-3 pb-2", GRID[tab], TH)}>
+                  <div>{tab === "product" ? "Producto" : "Concepto"}</div>
+                  {llevaBultos(tab) && (
+                    <div className="text-right">
+                      Bultos<span className={SUB}>paquetes</span>
                     </div>
-                  ) : (
-                    <input
-                      value={l.description}
-                      onChange={(e) => set(l.id, { description: e.target.value })}
-                      placeholder={l.type === "charge" ? "Concepto del cargo" : "Concepto"}
-                      className={campo}
-                    />
                   )}
+                  <div className="text-right">
+                    Cantidad<span className={SUB}>unidades</span>
+                  </div>
+                  {llevaBultos(tab) && <div>Unidad</div>}
+                  <div className="text-right">{tab === "charge" ? "Monto" : "Precio"}</div>
+                  <div className="text-right">Importe</div>
+                  <div />
+                </div>
+              )}
 
-                  {/* Bultos y cantidad: se escribe en el que se toque.
-                      Antes había una columna aparte con un par de botones
-                      «Cant.|Bultos» de 11px para elegir cuál mandaba. Sobra:
-                      el campo que quieres llenar ya lo estás señalando con el
-                      cursor. Al enfocar el atenuado, pasa a ser el que manda y
-                      el otro se recalcula.
+              <div className="flex flex-col gap-2">
+                {visibles.map((l) => (
+                  <div key={l.id} className={cn("grid items-center gap-2 casilla p-3", GRID[l.type])}>
+                    {/* concepto */}
+                    {l.type === "product" ? (
+                      <div className="min-w-0">
+                        <div className="truncate text-sm">{l.nombre}</div>
+                        <div className="text-[11px] text-neutral-700 tabular-nums">
+                          {l.sku} ·{" "}
+                          {descontar && Number(l.qty) > disponible(l, yaReservado)
+                            ? `excede disponible (${n0(disponible(l, yaReservado))})`
+                            : `${l.piezasPorBulto} por bulto · disp. ${n0(disponible(l, yaReservado))}`}
+                        </div>
+                      </div>
+                    ) : (
+                      <input
+                        value={l.description}
+                        onChange={(e) => set(l.id, { description: e.target.value })}
+                        placeholder={l.type === "charge" ? "Concepto del cargo" : "Concepto"}
+                        className={campo}
+                      />
+                    )}
 
-                      BULTOS PRIMERO, igual que en el encabezado: es la unidad
-                      de venta y la que entra por defecto. Al ser condicional,
-                      un cargo —que no lleva bultos— sigue empezando por la
-                      cantidad sin necesidad de un caso aparte. */}
-                  {llevaBultos(l.type) && (
+                    {/* Bultos y cantidad: se escribe en el que se toque.
+                        Antes había una columna aparte con un par de botones
+                        «Cant.|Bultos» de 11px para elegir cuál mandaba. Sobra:
+                        el campo que quieres llenar ya lo estás señalando con el
+                        cursor. Al enfocar el atenuado, pasa a ser el que manda y
+                        el otro se recalcula.
+
+                        BULTOS PRIMERO, igual que en el encabezado: es la unidad
+                        de venta y la que entra por defecto. Al ser condicional,
+                        un cargo —que no lleva bultos— sigue empezando por la
+                        cantidad sin necesidad de un caso aparte. */}
+                    {llevaBultos(l.type) && (
+                      <input
+                        value={l.bultos ?? ""}
+                        onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
+                        onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "bultos" })}
+                        readOnly={convierteBultos(l.type) && l.modo === "qty"}
+                        inputMode="decimal"
+                        placeholder={convierteBultos(l.type) ? "" : "—"}
+                        title={
+                          convierteBultos(l.type) && l.modo === "qty"
+                            ? "Sale de las unidades. Haz clic para escribir bultos."
+                            : undefined
+                        }
+                        className={cn(
+                          campo,
+                          "text-right tabular-nums",
+                          convierteBultos(l.type) &&
+                            l.modo === "qty" &&
+                            "cursor-pointer border-dashed text-neutral-700"
+                        )}
+                      />
+                    )}
+
+                    {/* cantidad — las unidades reales, que son las que mueven stock */}
                     <input
-                      value={l.bultos ?? ""}
-                      onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
-                      onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "bultos" })}
-                      readOnly={convierteBultos(l.type) && l.modo === "qty"}
-                      inputMode="decimal"
-                      placeholder={convierteBultos(l.type) ? "" : "—"}
+                      value={l.qty}
+                      onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                      onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
+                      readOnly={convierteBultos(l.type) && l.modo === "bultos"}
+                      inputMode="numeric"
                       title={
-                        convierteBultos(l.type) && l.modo === "qty"
-                          ? "Sale de las unidades. Haz clic para escribir bultos."
+                        convierteBultos(l.type) && l.modo === "bultos"
+                          ? "Sale de los bultos. Haz clic para escribir unidades."
                           : undefined
                       }
                       className={cn(
                         campo,
                         "text-right tabular-nums",
                         convierteBultos(l.type) &&
-                          l.modo === "qty" &&
+                          l.modo === "bultos" &&
                           "cursor-pointer border-dashed text-neutral-700"
                       )}
                     />
-                  )}
 
-                  {/* cantidad — las unidades reales, que son las que mueven stock */}
-                  <input
-                    value={l.qty}
-                    onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
-                    onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
-                    readOnly={convierteBultos(l.type) && l.modo === "bultos"}
-                    inputMode="numeric"
-                    title={
-                      convierteBultos(l.type) && l.modo === "bultos"
-                        ? "Sale de los bultos. Haz clic para escribir unidades."
-                        : undefined
-                    }
-                    className={cn(
-                      campo,
-                      "text-right tabular-nums",
-                      convierteBultos(l.type) &&
-                        l.modo === "bultos" &&
-                        "cursor-pointer border-dashed text-neutral-700"
+                    {llevaBultos(l.type) && (
+                      <input
+                        value={l.unit ?? ""}
+                        onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
+                        list="unidades-erp"
+                        placeholder="PZA"
+                        className={cn(campo, "px-2 text-center")}
+                      />
                     )}
-                  />
 
-                  {llevaBultos(l.type) && (
                     <input
-                      value={l.unit ?? ""}
-                      onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
-                      list="unidades-erp"
-                      placeholder="PZA"
-                      className={cn(campo, "px-2 text-center")}
+                      value={l.unit_price}
+                      onChange={(e) => set(l.id, { unit_price: e.target.value })}
+                      inputMode="decimal"
+                      placeholder={l.type === "charge" ? "Monto" : "Precio"}
+                      className={cn(campo, "text-right tabular-nums")}
                     />
-                  )}
-
-                  <input
-                    value={l.unit_price}
-                    onChange={(e) => set(l.id, { unit_price: e.target.value })}
-                    inputMode="decimal"
-                    placeholder={l.type === "charge" ? "Monto" : "Precio"}
-                    className={cn(campo, "text-right tabular-nums")}
-                  />
-                  <div className="text-right text-[15px] font-semibold tabular-nums">
-                    {usd(importe(l))}
+                    <div className="text-right text-[15px] font-semibold tabular-nums">
+                      {usd(importe(l))}
+                    </div>
+                    <button
+                      onClick={() => quitar(l.id)}
+                      title="Quitar renglón"
+                      className="accion justify-self-end"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => quitar(l.id)}
-                    title="Quitar renglón"
-                    className="accion justify-self-end"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             <datalist id="unidades-erp">
@@ -842,7 +845,7 @@ export default function FacturaForm() {
             </datalist>
           </section>
 
-          <section className="registro p-6">
+          <section className="registro p-4 md:p-6">
             <h4 className="m-0 mb-3 font-semibold">Notas al cliente</h4>
             <textarea
               value={notas}
@@ -853,7 +856,7 @@ export default function FacturaForm() {
           </section>
         </div>
 
-        <aside className="sticky top-4 flex flex-col gap-3 registro p-6 text-sm">
+        <aside className="sticky top-4 flex flex-col gap-3 registro p-4 md:p-6 text-sm">
           <h4 className="m-0 mb-1 font-semibold">Resumen</h4>
           {TABS.map(({ id, label }) => {
             const sub = subtotalTipo(lineas, id)

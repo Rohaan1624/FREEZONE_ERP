@@ -2,7 +2,6 @@ import { createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 
 import { AuthProvider } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
-import { SoloEscritorio } from "@/components/solo-escritorio";
 import { ASISTENTE_ACTIVO } from "@/lib/banderas";
 import Inicio from "@/pages/inicio";
 import Login from "@/pages/login";
@@ -47,25 +46,11 @@ export const router = createBrowserRouter([
       </AuthProvider>
     ),
     children: [
-      // La raíz es PÚBLICA y, a diferencia de todo lo demás, NO lleva el muro
-      // de escritorio: es la página que se comparte por WhatsApp, y casi todo
-      // el que reciba el enlace lo va a abrir en el teléfono. Enseñarle una
-      // pared en vez de la propuesta sería perder justo a quien venía a mirar.
-      //
-      // Que el sistema en sí pida computadora ya se lo dice el muro cuando
-      // pulse «Acceder», que es el momento en que esa información le sirve.
+      // La raíz es PÚBLICA: la portada que se comparte por WhatsApp.
       { path: "/", element: <Inicio /> },
 
       {
-        // Todo lo que ES la aplicación sí queda detrás del muro, incluidos
-        // login y registro: entrar desde el teléfono para toparse con la
-        // pared justo después de escribir la contraseña es peor que no dejar
-        // entrar.
-        element: (
-          <SoloEscritorio>
-            <Outlet />
-          </SoloEscritorio>
-        ),
+        element: <Outlet />,
         children: [
           { path: "/login", element: <Login /> },
           { path: "/registro", element: <Registro /> },

@@ -175,7 +175,7 @@ export default function Cliente() {
         </div>
       )}
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="flex flex-wrap items-start gap-4">
           <span className="grid size-14 shrink-0 place-items-center casilla">
             <Store className="size-7 text-neutral-700" />
@@ -247,7 +247,7 @@ export default function Cliente() {
       </section>
 
       {pago && (
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Registrar pago</h4>
             <span className="text-[13px] text-neutral-700">
@@ -353,7 +353,7 @@ export default function Cliente() {
       )}
 
       {porCobrar.gt(0) && (
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <h4 className="m-0 mb-3 font-semibold">Antigüedad del saldo</h4>
           <div>
             {edades.map((a, i) => (
@@ -379,7 +379,7 @@ export default function Cliente() {
         </section>
       )}
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h4 className="m-0 font-semibold">Movimientos</h4>
           <div className="ml-auto flex gap-4 text-xs">
@@ -400,7 +400,7 @@ export default function Cliente() {
             emitirlas.
           </div>
         ) : (
-          <>
+          <div className="tabla-desliza" style={{ "--ancho-tabla": "700px" }}>
             <div className="grid grid-cols-[40px_96px_minmax(0,1.5fr)_minmax(0,1fr)_100px_100px_110px_34px] gap-3 border-b border-neutral-300 px-1 pb-2 rotulo">
               <div />
               <div>Fecha</div>
@@ -462,18 +462,18 @@ export default function Cliente() {
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
       </section>
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <h4 className="m-0 mb-3 font-semibold">Facturas del cliente</h4>
         {facturas.length === 0 ? (
           <div className="casilla p-8 text-center text-[13px] text-neutral-700">
             Este cliente todavía no tiene facturas.
           </div>
         ) : (
-          <div>
+          <div className="tabla-desliza" style={{ "--ancho-tabla": "560px" }}>
             {facturas
               .slice()
               .sort((a, b) => (a.date_created < b.date_created ? 1 : -1))

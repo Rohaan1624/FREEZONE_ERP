@@ -424,7 +424,7 @@ export default function Entrada() {
               {productosL.length} SKU · {n0(unidades)} unidades
             </span>
             {editable && (
-              <div className="ml-auto flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
@@ -435,7 +435,7 @@ export default function Entrada() {
                     }
                   }}
                   placeholder="Buscar SKU"
-                  className="entrada-texto w-[210px]"
+                  className="entrada-texto w-full basis-full md:w-[210px] md:basis-auto"
                 />
                 <button
                   onClick={() => setNuevoSku(true)}
@@ -506,128 +506,130 @@ export default function Entrada() {
             </div>
           )}
 
-          {/* Cantidad and Bultos sit side by side, and only products offer the
-              switch — a charge has no packaging to convert through. */}
-          {productosL.length > 0 && (
-            <div className={cn("grid items-end gap-2 border-b border-neutral-300 px-1 pb-2", GRID.product, rotulo)}>
-              <div>Producto</div>
-              <div>Capturar por</div>
-              <div className="text-right">
-                Cantidad<span className="block text-[9px] tracking-normal normal-case">unidades</span>
+          <div className="tabla-desliza" style={{ "--ancho-tabla": "780px" }}>
+            {/* Cantidad and Bultos sit side by side, and only products offer the
+                switch — a charge has no packaging to convert through. */}
+            {productosL.length > 0 && (
+              <div className={cn("grid items-end gap-2 border-b border-neutral-300 px-1 pb-2", GRID.product, rotulo)}>
+                <div>Producto</div>
+                <div>Capturar por</div>
+                <div className="text-right">
+                  Cantidad<span className="block text-[9px] tracking-normal normal-case">unidades</span>
+                </div>
+                <div className="text-right">
+                  Bultos<span className="block text-[9px] tracking-normal normal-case">paquetes</span>
+                </div>
+                <div>Unidad</div>
+                <div className="text-right">Costo u.</div>
+                <div className="text-right">Importe</div>
+                <div className="text-right">
+                  Costo final u.
+                  <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
+                </div>
+                <div className="text-right">
+                  Importe final
+                  <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
+                </div>
+                <div />
               </div>
-              <div className="text-right">
-                Bultos<span className="block text-[9px] tracking-normal normal-case">paquetes</span>
-              </div>
-              <div>Unidad</div>
-              <div className="text-right">Costo u.</div>
-              <div className="text-right">Importe</div>
-              <div className="text-right">
-                Costo final u.
-                <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
-              </div>
-              <div className="text-right">
-                Importe final
-                <span className="block text-[9px] tracking-normal normal-case">con gastos</span>
-              </div>
-              <div />
-            </div>
-          )}
+            )}
 
-          <div>
-            {lineas
-              .filter((l) => l.type === "product")
-              .map((l) => (
-                <div
-                  key={l.id}
-                  className={cn("registro-fila grid items-center gap-2 px-1 py-2.5", GRID.product)}
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm">{l.nombre}</div>
-                    <div className="text-[11px] text-neutral-700 tabular-nums">
-                      {l.sku} · {l.piezasPorBulto} por bulto
-                    </div>
-                  </div>
-
-                  <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
-                    {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
-                      <button
-                        key={m}
-                        onClick={() => editable && set(l.id, { modo: m })}
-                        disabled={!editable}
-                        className={cn(
-                          "px-2 py-1 text-[11px] transition-colors",
-                          m === "bultos" && "border-l border-neutral-300",
-                          l.modo === m ? "bg-ink text-paper" : "bg-white text-neutral-600"
-                        )}
-                      >
-                        {etiqueta}
-                      </button>
-                    ))}
-                  </div>
-
-                  <input
-                    value={l.qty}
-                    onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
-                    readOnly={!editable || l.modo === "bultos"}
-                    inputMode="numeric"
-                    className={cn(campo, "text-right tabular-nums", l.modo === "bultos" && "opacity-60")}
-                  />
-                  <input
-                    value={l.bultos ?? ""}
-                    onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
-                    readOnly={!editable || l.modo === "qty"}
-                    inputMode="decimal"
-                    className={cn(campo, "text-right tabular-nums", l.modo === "qty" && "opacity-60")}
-                  />
-                  <input
-                    value={l.unit ?? ""}
-                    onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
-                    readOnly={!editable}
-                    list="unidades-entrada"
-                    placeholder="PZA"
-                    className={cn(campo, "px-2 text-center")}
-                  />
-                  <input
-                    value={l.cost_unit}
-                    onChange={(e) => set(l.id, { cost_unit: e.target.value })}
-                    readOnly={!editable}
-                    inputMode="decimal"
-                    placeholder="Costo"
-                    className={cn(campo, "text-right tabular-nums")}
-                  />
-                  <div className="text-right text-sm tabular-nums">{usd(importe(l))}</div>
-                  <div className="text-right text-sm font-semibold tabular-nums">
-                    {usd(aterrizado(l))}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[15px] font-semibold tabular-nums">
-                      {usd(mul(l.qty, aterrizado(l)))}
-                    </div>
-                    {/* La diferencia contra el importe capturado: cuánto gasto
-                        cargó este renglón. Va aquí y no bajo el costo unitario
-                        porque es un importe, no un precio por unidad. */}
-                    {prorrateable && !absorbido(l).eq(0) && (
-                      <div
-                        title="Gastos prorrateados a este renglón"
-                        className="text-[11px] text-neutral-700 tabular-nums"
-                      >
-                        +{usd(absorbido(l))}
+            <div>
+              {lineas
+                .filter((l) => l.type === "product")
+                .map((l) => (
+                  <div
+                    key={l.id}
+                    className={cn("registro-fila grid items-center gap-2 px-1 py-2.5", GRID.product)}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm">{l.nombre}</div>
+                      <div className="text-[11px] text-neutral-700 tabular-nums">
+                        {l.sku} · {l.piezasPorBulto} por bulto
                       </div>
+                    </div>
+
+                    <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
+                      {[["qty", "Cant."], ["bultos", "Bultos"]].map(([m, etiqueta]) => (
+                        <button
+                          key={m}
+                          onClick={() => editable && set(l.id, { modo: m })}
+                          disabled={!editable}
+                          className={cn(
+                            "px-2 py-1 text-[11px] transition-colors",
+                            m === "bultos" && "border-l border-neutral-300",
+                            l.modo === m ? "bg-ink text-paper" : "bg-white text-neutral-600"
+                          )}
+                        >
+                          {etiqueta}
+                        </button>
+                      ))}
+                    </div>
+
+                    <input
+                      value={l.qty}
+                      onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                      readOnly={!editable || l.modo === "bultos"}
+                      inputMode="numeric"
+                      className={cn(campo, "text-right tabular-nums", l.modo === "bultos" && "opacity-60")}
+                    />
+                    <input
+                      value={l.bultos ?? ""}
+                      onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
+                      readOnly={!editable || l.modo === "qty"}
+                      inputMode="decimal"
+                      className={cn(campo, "text-right tabular-nums", l.modo === "qty" && "opacity-60")}
+                    />
+                    <input
+                      value={l.unit ?? ""}
+                      onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
+                      readOnly={!editable}
+                      list="unidades-entrada"
+                      placeholder="PZA"
+                      className={cn(campo, "px-2 text-center")}
+                    />
+                    <input
+                      value={l.cost_unit}
+                      onChange={(e) => set(l.id, { cost_unit: e.target.value })}
+                      readOnly={!editable}
+                      inputMode="decimal"
+                      placeholder="Costo"
+                      className={cn(campo, "text-right tabular-nums")}
+                    />
+                    <div className="text-right text-sm tabular-nums">{usd(importe(l))}</div>
+                    <div className="text-right text-sm font-semibold tabular-nums">
+                      {usd(aterrizado(l))}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[15px] font-semibold tabular-nums">
+                        {usd(mul(l.qty, aterrizado(l)))}
+                      </div>
+                      {/* La diferencia contra el importe capturado: cuánto gasto
+                          cargó este renglón. Va aquí y no bajo el costo unitario
+                          porque es un importe, no un precio por unidad. */}
+                      {prorrateable && !absorbido(l).eq(0) && (
+                        <div
+                          title="Gastos prorrateados a este renglón"
+                          className="text-[11px] text-neutral-700 tabular-nums"
+                        >
+                          +{usd(absorbido(l))}
+                        </div>
+                      )}
+                    </div>
+                    {editable ? (
+                      <button
+                        onClick={() => quitar(l.id)}
+                        title="Quitar renglón"
+                        className="accion justify-self-end"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    ) : (
+                      <div />
                     )}
                   </div>
-                  {editable ? (
-                    <button
-                      onClick={() => quitar(l.id)}
-                      title="Quitar renglón"
-                      className="accion justify-self-end"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  ) : (
-                    <div />
-                  )}
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
 
           {cargosL.length > 0 && (

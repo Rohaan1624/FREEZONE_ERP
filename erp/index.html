@@ -2,7 +2,10 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: sin esto env(safe-area-inset-bottom) vale 0 y, abierta
+         desde la pantalla de inicio del iPhone, la barra de pestañas de abajo
+         queda debajo de la raya de inicio. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <title>ERP ZL · Facturación e inventario</title>
     <meta
@@ -15,7 +18,16 @@
     <meta name="robots" content="noindex, nofollow" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- iOS ignora los iconos SVG en la pantalla de inicio: sin un PNG pone una
+         captura borrosa de la página. 180×180, cuadrado lleno y sin
+         transparencia: iOS le aplica su propia máscara redondeada. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Nombre, colores e iconos al agregarla a la pantalla de inicio; con
+         display standalone se abre como app, sin la barra del navegador. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ERP ZL" />
 
     <!-- La app es de un solo tema (tinta sobre papel); decirlo evita que el

@@ -139,8 +139,10 @@ export default function Productos() {
   const campo = "mt-0.5 w-full bg-transparent text-base outline-none"
   const tile = "casilla block"
   const rotulo = "rotulo"
+  // En el teléfono: producto, existencia, precio y acciones. Unidad, costo y
+  // markup aparecen desde md.
   const COLS =
-    "grid-cols-[minmax(0,1fr)_minmax(76px,0.2fr)_minmax(96px,0.24fr)_minmax(100px,0.24fr)_minmax(100px,0.24fr)_150px_70px]"
+    "grid-cols-[minmax(0,1fr)_auto_auto_auto] md:grid-cols-[minmax(0,1fr)_minmax(76px,0.2fr)_minmax(96px,0.24fr)_minmax(100px,0.24fr)_minmax(100px,0.24fr)_150px_70px]"
 
   return (
     <div className="flex flex-col gap-4">
@@ -155,8 +157,8 @@ export default function Productos() {
             {totales?.sin_costo > 0 && ` · ${totales.sin_costo} sin costo`}
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
+          <div className="relative min-w-0 flex-1 md:flex-none">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
@@ -165,7 +167,7 @@ export default function Productos() {
                 setPagina(0)
               }}
               placeholder="Buscar SKU o descripción"
-              className="entrada-texto w-[260px] pr-3 pl-9"
+              className="entrada-texto w-full pr-3 pl-9 md:w-[260px]"
             />
           </div>
           <button
@@ -348,7 +350,7 @@ export default function Productos() {
         <div className="registro overflow-hidden">
           <div
             className={cn(
-              "registro-cab rotulo grid items-center gap-3",
+              "registro-cab rotulo hidden items-center gap-3 md:grid",
               COLS
             )}
           >
@@ -384,7 +386,7 @@ export default function Productos() {
                   {p.sku} · {p.qty_unit > 1 ? `${p.qty_unit} por bulto` : "suelto"}
                 </div>
               </div>
-              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600">
+              <div className="pointer-events-none relative z-10 hidden text-[13px] text-neutral-600 md:block">
                 {p.unit ?? "PZA"}
               </div>
               {/* Agotado en rojo: en una comercializadora un SKU en 0 es venta
@@ -397,7 +399,7 @@ export default function Productos() {
               >
                 {n0(p.stock)}
               </div>
-              <div className="pointer-events-none relative z-10 text-right text-sm tabular-nums">
+              <div className="pointer-events-none relative z-10 hidden text-right text-sm tabular-nums md:block">
                 {p.cost_price == null ? (
                   <span className="text-neutral-400">—</span>
                 ) : (
@@ -411,7 +413,7 @@ export default function Productos() {
                   usd(p.sale_price)
                 )}
               </div>
-              <div className="pointer-events-none relative z-10 text-right tabular-nums">
+              <div className="pointer-events-none relative z-10 hidden text-right tabular-nums md:block">
                 {/* Solo el markup: es la cifra con la que se pone el precio.
                     El margen del periodo vive en el Resumen, calculado en SQL
                     sobre renglones de factura — otra pregunta, otro lugar. */}

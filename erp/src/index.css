@@ -280,7 +280,7 @@
   /* Panel de formulario: el chrome va tintado y los campos blancos encima —
      el papel donde se escribe es lo blanco. */
   .panel {
-    @apply rounded-2xl border border-neutral-300 bg-paper p-5;
+    @apply rounded-2xl border border-neutral-300 bg-paper p-4 md:p-5;
   }
 
   /* Controles */
@@ -357,6 +357,23 @@
   }
   .hoja thead {
     display: table-header-group; /* repite el encabezado en cada página */
+  }
+}
+
+/* ------------------------------------------------- tablas en el teléfono */
+/* Una tabla de siete cifras no cabe en 390px, y apretarla hasta que las
+   columnas se encimen la vuelve ilegible. En el teléfono la tabla conserva un
+   ancho mínimo y se desliza de lado DENTRO de su tarjeta; la página no se
+   mueve. Cada hijo directo (encabezado y renglones) recibe el mínimo, así que
+   encabezado y datos se deslizan juntos. En escritorio no hace nada.
+   El ancho se ajusta por tabla con la variable --ancho-tabla. */
+@media (max-width: 767px) {
+  .tabla-desliza {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .tabla-desliza > * {
+    min-width: var(--ancho-tabla, 640px);
   }
 }
 

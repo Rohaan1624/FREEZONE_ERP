@@ -134,7 +134,7 @@ export default function Ajustes() {
       )}
 
       {form && (
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <h4 className="m-0 font-semibold">Nuevo ajuste</h4>
             <div className="ml-auto flex gap-2">
@@ -322,7 +322,7 @@ export default function Ajustes() {
       )}
 
       {filas.length > 0 && (
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <div className="grid grid-cols-[40px_100px_minmax(0,1.5fr)_minmax(0,1.4fr)_90px_100px] gap-3 border-b border-neutral-300 px-1 pb-2 rotulo">
             <div />
             <div>Fecha</div>

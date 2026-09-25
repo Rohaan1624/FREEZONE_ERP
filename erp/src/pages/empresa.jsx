@@ -87,7 +87,7 @@ export default function Empresa() {
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
             <div className="rotulo">
@@ -151,7 +151,7 @@ export default function Empresa() {
         )}
       </section>
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div>
             <h4 className="m-0 font-semibold">Importar del sistema anterior</h4>
@@ -166,7 +166,7 @@ export default function Empresa() {
         </div>
       </section>
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <h4 className="m-0 mb-3 font-semibold">Numeración de facturas</h4>
         <div className="flex flex-wrap items-center gap-3">
           <div className="casilla px-4 py-3">

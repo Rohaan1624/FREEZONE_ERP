@@ -1,13 +1,13 @@
 import * as React from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Plus, ArrowRight, Pencil, Search, ListFilter } from "lucide-react"
+import { Plus, ArrowRight, Pencil, Search, ListFilter, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { usd, n0, fecha, TONO_TEXTO } from "@/lib/format"
 import { useTotales } from "@/lib/totales"
 import { Paginacion } from "@/components/paginacion"
-import { useDebounce, rango, filtroTexto } from "@/lib/lista"
+import { useDebounce, rango, filtrosBusqueda } from "@/lib/lista"
 
 /**
  * Libro de facturas.
@@ -43,8 +43,10 @@ const FILTROS = [ABIERTAS, TODAS, "Borrador", "Pendiente", "Parcial", "Vencida",
 // Fechas e importes van todos alineados a la derecha para que formen un solo
 // bloque de cifras contra el margen; el nombre del cliente se queda con la
 // holgura. Alineadas a la izquierda, las fechas flotaban en medio del renglón.
+// Con prefijo md: porque en el teléfono cada renglón es una tarjeta, no una
+// fila de tabla: ocho columnas no caben en 390px.
 const COLS =
-  "grid-cols-[104px_minmax(0,1fr)_100px_100px_128px_128px_124px_54px]"
+  "md:grid-cols-[104px_minmax(0,1fr)_100px_100px_128px_128px_124px_54px]"
 
 export default function Facturas() {
   const navigate = useNavigate()
@@ -77,8 +79,10 @@ export default function Facturas() {
     // desaparecer de la vista por defecto sin que nadie lo note.
     if (filtro === ABIERTAS) consulta = consulta.neq("estado", "Pagada")
     else if (filtro !== TODAS) consulta = consulta.eq("estado", filtro)
-    const f = filtroTexto(q, ["invoice_num", "client_name"])
-    if (f) consulta = consulta.or(f)
+    // Búsqueda tolerante, una condición por palabra (se combinan con AND):
+    // «almacen» encuentra «Almacén», y «rios almacen» encuentra «Almacén Tres
+    // Ríos» aunque el orden no calce.
+    for (const f of filtrosBusqueda(q, ["invoice_num", "client_name"])) consulta = consulta.or(f)
 
     consulta.then(({ data, error, count }) => {
       if (!vivo) return
@@ -116,13 +120,13 @@ export default function Facturas() {
             cifra del negocio. Repetirlo aquí solo daba dos sitios que pueden
             discrepar. */}
         <h3 className="m-0 text-[21px] font-semibold">Facturas</h3>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
           {/* Desplegable y no siete pestañas: eran una fila entera de chrome
               para algo que se toca una vez y se deja quieto, y con el contador
               al lado competían con las cifras del renglón, que es lo que de
               verdad se viene a leer. Cerrado ocupa un control y dice en qué
               filtro estás, que es lo único que hace falta saber de un vistazo. */}
-          <label className="relative">
+          <label className="relative flex-1 md:flex-none">
             <span className="sr-only">Filtrar por estado</span>
             <ListFilter className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <select
@@ -131,7 +135,7 @@ export default function Facturas() {
                 setFiltro(e.target.value)
                 setPagina(0)
               }}
-              className="entrada-texto cursor-pointer py-0 pr-3 pl-9"
+              className="entrada-texto w-full cursor-pointer py-0 pr-3 pl-9"
             >
               {FILTROS.map((f) => (
                 <option key={f} value={f}>
@@ -141,17 +145,39 @@ export default function Facturas() {
               ))}
             </select>
           </label>
-          <div className="relative">
+          {/* En el teléfono la búsqueda va primero y a lo ancho: apretada junto
+              al filtro no cabía ni el texto de ayuda. */}
+          <div className="relative order-first w-full md:order-none md:w-auto">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
+              type="search"
               value={busca}
               onChange={(e) => {
                 setBusca(e.target.value)
                 setPagina(0)
               }}
-              placeholder="Buscar folio o cliente"
-              className="entrada-texto w-[236px] pr-3 pl-9"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setBusca("")
+                  setPagina(0)
+                }
+              }}
+              placeholder="Buscar por folio o cliente"
+              className="entrada-texto w-full pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden md:w-[280px]"
             />
+            {busca && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBusca("")
+                  setPagina(0)
+                }}
+                title="Borrar búsqueda"
+                className="absolute top-1/2 right-2 grid size-6 -translate-y-1/2 place-items-center rounded text-neutral-500 hover:text-ink"
+              >
+                <X className="size-4" />
+              </button>
+            )}
           </div>
           <Link
             to="/facturas/nueva"
@@ -184,6 +210,21 @@ export default function Facturas() {
               ? "Crea la primera con el botón Nueva factura."
               : "Prueba con otro filtro o búsqueda."}
           </div>
+          {/* Lo más común: se busca una factura ya pagada con el filtro por
+              defecto (Abiertas) puesto. Un clic y aparece. */}
+          {q.trim() && filtro !== TODAS && (
+            <button
+              type="button"
+              onClick={() => {
+                setFiltro(TODAS)
+                setPagina(0)
+              }}
+              className="boton boton-claro mx-auto mt-4"
+            >
+              <Search className="size-4" />
+              Buscar «{q.trim()}» en todas las facturas
+            </button>
+          )}
         </div>
       )}
 
@@ -193,7 +234,7 @@ export default function Facturas() {
         <div className="registro overflow-hidden">
           <div
             className={cn(
-              "registro-cab rotulo grid items-center gap-3",
+              "registro-cab rotulo hidden items-center gap-3 md:grid",
               COLS
             )}
           >
@@ -215,53 +256,77 @@ export default function Facturas() {
                 key={f.id}
                 to={`/facturas/${f.id}`}
                 className={cn(
-                  "registro-fila group grid items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100",
+                  "registro-fila group block px-4 py-3 transition-colors hover:bg-neutral-100 md:grid md:items-center md:gap-3 md:py-2.5",
                   COLS
                 )}
               >
-                <div className="text-sm font-semibold tabular-nums">{f.invoice_num}</div>
-                <div className="truncate text-sm">{f.client_name ?? "—"}</div>
-                <div className="text-right text-[13px] text-neutral-600 tabular-nums">
-                  {fecha(f.date_created)}
-                </div>
-                <div className="text-right text-[13px] text-neutral-600 tabular-nums">
-                  {f.due_date ? fecha(f.due_date) : "—"}
-                </div>
-                <div className="text-right text-sm tabular-nums">{usd(f.total)}</div>
-                <div className="text-right text-sm font-semibold tabular-nums">
-                  {Number(f.saldo) < 0.01 ? (
-                    <span className="text-neutral-400">—</span>
-                  ) : (
-                    usd(f.saldo)
-                  )}
-                </div>
-                <div className={cn("text-[13px]", TONO_TEXTO[f.estado])}>
-                  {f.estado}
-                  {/* Cuánto lleva vencida importa más que la etiqueta sola:
-                      6 días y 90 días son dos conversaciones distintas. */}
-                  {vencida && dias > 0 && (
-                    <span className="ml-1.5 font-normal text-neutral-600 tabular-nums">
-                      {dias} d
+                {/* Teléfono: tarjeta de dos renglones. Lo que se viene a leer
+                    —quién y cuánto debe— va arriba; fechas y estado debajo. */}
+                <div className="flex flex-col gap-1 md:hidden">
+                  <div className="flex items-baseline gap-3">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {f.client_name ?? "—"}
                     </span>
-                  )}
+                    <span className="text-sm font-semibold tabular-nums">
+                      {Number(f.saldo) < 0.01 ? usd(f.total) : usd(f.saldo)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2 text-[12px] text-neutral-600">
+                    <span className="tabular-nums">{f.invoice_num}</span>
+                    <span>·</span>
+                    <span className="tabular-nums">{fecha(f.date_created)}</span>
+                    <span className={cn("ml-auto", TONO_TEXTO[f.estado])}>
+                      {f.estado}
+                      {vencida && dias > 0 && <span className="tabular-nums"> · {dias} d</span>}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-end gap-1.5">
-                  {f.status !== "closed" && (
-                    <button
-                      onClick={(e) => {
-                        // The whole row is a <Link>; without this the click
-                        // navigates to the detail page instead of the editor.
-                        e.preventDefault()
-                        e.stopPropagation()
-                        navigate(`/facturas/${f.id}/editar`)
-                      }}
-                      title="Editar"
-                      className="accion"
-                    >
-                      <Pencil className="size-[15px]" />
-                    </button>
-                  )}
-                  <ArrowRight className="size-[17px] text-neutral-400 transition-colors group-hover:text-ink" />
+
+                <div className="hidden md:contents">
+                  <div className="text-sm font-semibold tabular-nums">{f.invoice_num}</div>
+                  <div className="truncate text-sm">{f.client_name ?? "—"}</div>
+                  <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+                    {fecha(f.date_created)}
+                  </div>
+                  <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+                    {f.due_date ? fecha(f.due_date) : "—"}
+                  </div>
+                  <div className="text-right text-sm tabular-nums">{usd(f.total)}</div>
+                  <div className="text-right text-sm font-semibold tabular-nums">
+                    {Number(f.saldo) < 0.01 ? (
+                      <span className="text-neutral-400">—</span>
+                    ) : (
+                      usd(f.saldo)
+                    )}
+                  </div>
+                  <div className={cn("text-[13px]", TONO_TEXTO[f.estado])}>
+                    {f.estado}
+                    {/* Cuánto lleva vencida importa más que la etiqueta sola:
+                        6 días y 90 días son dos conversaciones distintas. */}
+                    {vencida && dias > 0 && (
+                      <span className="ml-1.5 font-normal text-neutral-600 tabular-nums">
+                        {dias} d
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {f.status !== "closed" && (
+                      <button
+                        onClick={(e) => {
+                          // The whole row is a <Link>; without this the click
+                          // navigates to the detail page instead of the editor.
+                          e.preventDefault()
+                          e.stopPropagation()
+                          navigate(`/facturas/${f.id}/editar`)
+                        }}
+                        title="Editar"
+                        className="accion"
+                      >
+                        <Pencil className="size-[15px]" />
+                      </button>
+                    )}
+                    <ArrowRight className="size-[17px] text-neutral-400 transition-colors group-hover:text-ink" />
+                  </div>
                 </div>
               </Link>
             )

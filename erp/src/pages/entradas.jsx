@@ -81,8 +81,9 @@ export default function Entradas() {
   const totales = useTotales("totales_entradas")
   const pendientes = totales?.pendientes ?? 0
 
+  // En el teléfono: entrada, costo total y estado. Lo demás aparece desde md.
   const COLS =
-    "grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_86px_118px_118px_128px_104px_30px]"
+    "grid-cols-[minmax(0,1fr)_auto_auto] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_86px_118px_118px_128px_104px_30px]"
 
   return (
     <div className="flex flex-col gap-4">
@@ -103,8 +104,8 @@ export default function Entradas() {
             no al capturarla — así puedes corregirla mientras esté pendiente.
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
+          <div className="relative min-w-0 flex-1 md:flex-none">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
@@ -113,7 +114,7 @@ export default function Entradas() {
                 setPagina(0)
               }}
               placeholder="Buscar entrada, proveedor u origen"
-              className="entrada-texto w-[270px] pr-3 pl-9"
+              className="entrada-texto w-full pr-3 pl-9 md:w-[270px]"
             />
           </div>
           <Link
@@ -175,7 +176,7 @@ export default function Entradas() {
         <div className="registro overflow-hidden">
           <div
             className={cn(
-              "registro-cab rotulo grid items-center gap-3",
+              "registro-cab rotulo hidden items-center gap-3 md:grid",
               COLS
             )}
           >
@@ -204,17 +205,17 @@ export default function Entradas() {
                   {fecha(p.date_created)}
                 </div>
               </div>
-              <div className="min-w-0">
+              <div className="hidden min-w-0 md:block">
                 <div className="truncate text-sm">{p.provider ?? "—"}</div>
                 <div className="truncate text-[11px] text-neutral-600">
                   {[p.origin, `${p.skus} SKU`].filter(Boolean).join(" · ")}
                 </div>
               </div>
-              <div className="text-right text-sm tabular-nums">{n0(p.unidades)}</div>
-              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+              <div className="hidden text-right text-sm tabular-nums md:block">{n0(p.unidades)}</div>
+              <div className="hidden text-right text-[13px] text-neutral-600 tabular-nums md:block">
                 {usd(p.mercancia)}
               </div>
-              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+              <div className="hidden text-right text-[13px] text-neutral-600 tabular-nums md:block">
                 {p.gastos.eq(0) ? <span className="text-neutral-400">—</span> : usd(p.gastos)}
               </div>
               <div className="text-right text-sm font-semibold tabular-nums">{usd(p.total)}</div>
@@ -228,7 +229,7 @@ export default function Entradas() {
               >
                 {p.status === "closed" ? "Recibida" : "Pendiente"}
               </div>
-              <ArrowRight className="size-[17px] justify-self-end text-neutral-400 transition-colors group-hover:text-ink" />
+              <ArrowRight className="hidden size-[17px] justify-self-end text-neutral-400 md:block transition-colors group-hover:text-ink" />
             </Link>
           ))}
         </div>

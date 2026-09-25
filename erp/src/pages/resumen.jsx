@@ -186,7 +186,7 @@ export default function Resumen() {
               money that was actually billed, and a summary that quietly drops
               the cents is a summary you cannot reconcile against the invoices
               it came from. */}
-          <div className="text-[64px] leading-[0.95] font-semibold tracking-[-0.035em] tabular-nums">
+          <div className="text-[44px] leading-[0.95] font-semibold tracking-[-0.035em] tabular-nums md:text-[64px]">
             {usd(barras.totalActual)}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2.5 text-sm">
@@ -263,7 +263,7 @@ export default function Resumen() {
                 </table>
               </div>
             ) : (
-              <div className="flex h-[190px] items-end gap-2">
+              <div className="flex h-[190px] items-end gap-1 md:gap-2">
                 {barras.etiquetas.map((e, i) => {
                   const viva = activa === i
                   return (
@@ -271,7 +271,7 @@ export default function Resumen() {
                       key={i}
                       onMouseEnter={() => setActiva(i)}
                       onMouseLeave={() => setActiva(null)}
-                      className="relative flex h-full flex-1 flex-col justify-end gap-2"
+                      className="relative flex h-full min-w-0 flex-1 flex-col justify-end gap-2"
                     >
                       {viva && (
                         <div className="pointer-events-none absolute -top-1 left-1/2 z-10 w-max -translate-x-1/2 -translate-y-full rounded-md bg-ink px-3 py-2 text-[11px] text-paper shadow-md">
@@ -303,7 +303,7 @@ export default function Resumen() {
                           }}
                         />
                       </div>
-                      <div className="text-center text-[10px] tracking-[0.06em] text-neutral-600 uppercase">
+                      <div className="text-center text-[9px] tracking-[0.04em] text-neutral-600 uppercase md:text-[10px] md:tracking-[0.06em]">
                         {e}
                       </div>
                     </div>
@@ -402,16 +402,20 @@ export default function Resumen() {
             <div
               key={t.sku}
               className={cn(
-                "grid grid-cols-[22px_minmax(0,1fr)_140px_140px] items-center gap-3 px-5 py-2.5",
+                "grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 md:grid-cols-[22px_minmax(0,1fr)_140px_140px] md:px-5",
                 i > 0 && "border-t border-neutral-200"
               )}
             >
               <div className="text-[13px] text-neutral-500 tabular-nums">{i + 1}</div>
               <div className="min-w-0">
                 <div className="truncate text-sm">{t.nombre}</div>
-                <div className="text-[11px] text-neutral-600 tabular-nums">{t.sku}</div>
+                <div className="text-[11px] text-neutral-600 tabular-nums">
+                  {t.sku}
+                  {/* En el teléfono las unidades bajan aquí para dejarle el renglón al importe. */}
+                  <span className="md:hidden"> · {n0(t.unidades)} unidades</span>
+                </div>
               </div>
-              <div className="text-right text-[13px] text-neutral-600 tabular-nums">
+              <div className="hidden text-right text-[13px] text-neutral-600 tabular-nums md:block">
                 {n0(t.unidades)} unidades
               </div>
               <div className="text-right text-[16px] font-semibold tabular-nums">

@@ -114,7 +114,7 @@ export default function Producto() {
         </div>
       )}
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="flex flex-wrap items-start gap-4">
           <span className="grid size-14 shrink-0 place-items-center casilla">
             <Package className="size-7 text-neutral-700" />
@@ -175,7 +175,7 @@ export default function Producto() {
         </div>
       </section>
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <h4 className="m-0 font-semibold">Movimientos</h4>
           <span className="text-[12px] text-neutral-700 tabular-nums">
@@ -205,7 +205,7 @@ export default function Producto() {
               : "Ningún movimiento de ese tipo."}
           </div>
         ) : (
-          <>
+          <div className="tabla-desliza" style={{ "--ancho-tabla": "660px" }}>
             <div className={cn("grid gap-3 border-b border-neutral-300 px-1 pb-2", GRID, rotulo)}>
               <div />
               <div>Fecha</div>
@@ -263,7 +263,7 @@ export default function Producto() {
                 )
               })}
             </div>
-          </>
+          </div>
         )}
 
         <p className="mt-3 text-xs text-neutral-700">

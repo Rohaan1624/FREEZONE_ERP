@@ -117,7 +117,7 @@ export default function Factura() {
         </div>
       )}
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-start gap-4">
           <div>
             <div className={rotulo}>Factura de venta</div>
@@ -264,7 +264,7 @@ export default function Factura() {
       </section>
 
       {pago && (
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <div className="mb-4 flex items-center gap-3">
             <h4 className="m-0 font-semibold">Registrar pago</h4>
             <span className="text-[13px] text-neutral-700">saldo {usd(est.saldo)}</span>
@@ -336,56 +336,58 @@ export default function Factura() {
         </section>
       )}
 
-      <section className="registro p-6">
+      <section className="registro p-4 md:p-6">
         <h4 className="m-0 mb-3 font-semibold">Renglones</h4>
-        <div className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] gap-2 border-b border-neutral-300 px-1 pb-2 rotulo">
-          <div>Tipo</div>
-          <div>Descripción</div>
-          <div className="text-right">Bultos</div>
-          <div className="text-right">Cantidad</div>
-          <div>Unidad</div>
-          <div className="text-right">Precio</div>
-          <div className="text-right">Importe</div>
-        </div>
-        <div>
-          {lineas.map((l) => (
-            <div
-              key={l.id}
-              className="registro-fila grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] items-center gap-2 px-1 py-2.5"
-            >
-              <span className="text-[12px] text-neutral-600">
-                {TIPO_LINEA[l.type] ?? l.type}
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-sm">
-                  {l.product?.description || l.product?.sku || l.description || "—"}
+        <div className="tabla-desliza" style={{ "--ancho-tabla": "620px" }}>
+          <div className="grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] gap-2 border-b border-neutral-300 px-1 pb-2 rotulo">
+            <div>Tipo</div>
+            <div>Descripción</div>
+            <div className="text-right">Bultos</div>
+            <div className="text-right">Cantidad</div>
+            <div>Unidad</div>
+            <div className="text-right">Precio</div>
+            <div className="text-right">Importe</div>
+          </div>
+          <div>
+            {lineas.map((l) => (
+              <div
+                key={l.id}
+                className="registro-fila grid grid-cols-[92px_minmax(0,1.8fr)_78px_78px_64px_92px_minmax(0,0.9fr)] items-center gap-2 px-1 py-2.5"
+              >
+                <span className="text-[12px] text-neutral-600">
+                  {TIPO_LINEA[l.type] ?? l.type}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm">
+                    {l.product?.description || l.product?.sku || l.description || "—"}
+                  </div>
+                  {l.product?.sku && (
+                    <div className="text-[11px] text-neutral-700 tabular-nums">{l.product.sku}</div>
+                  )}
                 </div>
-                {l.product?.sku && (
-                  <div className="text-[11px] text-neutral-700 tabular-nums">{l.product.sku}</div>
-                )}
-              </div>
-              <div className="text-right text-sm tabular-nums">
-                {l.bultos == null ? "—" : l.bultos}
-              </div>
-              <div className="text-right text-sm tabular-nums">{n0(l.qty)}</div>
+                <div className="text-right text-sm tabular-nums">
+                  {l.bultos == null ? "—" : l.bultos}
+                </div>
+                <div className="text-right text-sm tabular-nums">{n0(l.qty)}</div>
               
-              <div className="text-sm">{l.unit || "—"}</div>
-              <div className="text-right text-sm tabular-nums">{usd(l.unit_price)}</div>
-              <div className="text-right text-[15px] font-semibold tabular-nums">
-                {usd(mul(l.qty, l.unit_price))}
+                <div className="text-sm">{l.unit || "—"}</div>
+                <div className="text-right text-sm tabular-nums">{usd(l.unit_price)}</div>
+                <div className="text-right text-[15px] font-semibold tabular-nums">
+                  {usd(mul(l.qty, l.unit_price))}
+                </div>
               </div>
-            </div>
-          ))}
-          {lineas.length === 0 && (
-            <div className="casilla p-6 text-center text-[13px] text-neutral-700">
-              Esta factura no tiene renglones.
-            </div>
-          )}
+            ))}
+            {lineas.length === 0 && (
+              <div className="casilla p-6 text-center text-[13px] text-neutral-700">
+                Esta factura no tiene renglones.
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_330px]">
-        <section className="registro p-6">
+        <section className="registro p-4 md:p-6">
           <h4 className="m-0 mb-3 font-semibold">Pagos aplicados</h4>
           {pagos.length === 0 && (
             <div className="text-[13px] text-neutral-700">Sin pagos registrados.</div>
@@ -418,7 +420,7 @@ export default function Factura() {
           </div>
         </section>
 
-        <aside className="flex flex-col gap-2.5 registro p-6 text-sm">
+        <aside className="flex flex-col gap-2.5 registro p-4 md:p-6 text-sm">
           {["product", "miscellaneous", "charge"].map((t) => {
             const subtotal = sumar(
               lineas.filter((l) => l.type === t),

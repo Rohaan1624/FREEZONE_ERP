@@ -138,8 +138,10 @@ export default function Clientes() {
   // se escribe es blanco, el chrome alrededor es el tinte.
   const tile = "casilla block"
   const rotulo = "rotulo"
+  // En el teléfono solo nombre, saldo y acciones; país, tipo y condiciones
+  // aparecen desde md, donde caben.
   const COLS =
-    "grid-cols-[minmax(0,1fr)_minmax(120px,0.4fr)_minmax(88px,0.28fr)_minmax(110px,0.32fr)_150px_70px]"
+    "grid-cols-[minmax(0,1fr)_auto_auto] md:grid-cols-[minmax(0,1fr)_minmax(120px,0.4fr)_minmax(88px,0.28fr)_minmax(110px,0.32fr)_150px_70px]"
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,8 +153,8 @@ export default function Clientes() {
             <span className="tabular-nums">{totales ? usd(totales.por_cobrar) : "…"}</span>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
+          <div className="relative min-w-0 flex-1 md:flex-none">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
@@ -161,7 +163,7 @@ export default function Clientes() {
                 setPagina(0)
               }}
               placeholder="Buscar nombre, RUC o contacto"
-              className="entrada-texto w-[260px] pr-3 pl-9"
+              className="entrada-texto w-full pr-3 pl-9 md:w-[260px]"
             />
           </div>
           <button
@@ -320,7 +322,7 @@ export default function Clientes() {
         <div className="registro overflow-hidden">
           <div
             className={cn(
-              "registro-cab rotulo grid items-center gap-3",
+              "registro-cab rotulo hidden items-center gap-3 md:grid",
               COLS
             )}
           >
@@ -361,13 +363,13 @@ export default function Clientes() {
                   {[c.identifier, c.contact, c.email].filter(Boolean).join(" · ") || "sin datos"}
                 </div>
               </div>
-              <div className="pointer-events-none relative z-10 truncate text-[13px] text-neutral-600">
+              <div className="pointer-events-none relative z-10 hidden truncate text-[13px] text-neutral-600 md:block">
                 {c.country || "—"}
               </div>
-              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600">
+              <div className="pointer-events-none relative z-10 hidden text-[13px] text-neutral-600 md:block">
                 {ETIQUETA_TIPO[c.client_type] ?? c.client_type ?? "—"}
               </div>
-              <div className="pointer-events-none relative z-10 text-[13px] text-neutral-600 tabular-nums">
+              <div className="pointer-events-none relative z-10 hidden text-[13px] text-neutral-600 tabular-nums md:block">
                 {c.payment_terms ? `Neto ${c.payment_terms}` : "Contado"}
               </div>
               <div className="pointer-events-none relative z-10 text-right text-sm font-semibold tabular-nums">

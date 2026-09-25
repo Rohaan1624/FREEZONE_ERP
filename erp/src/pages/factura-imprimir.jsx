@@ -175,230 +175,235 @@ export default function FacturaImprimir() {
       )}
 
       {/* The sheet. White with a hairline on screen; edge-to-edge on paper. */}
-      <div className="hoja mx-auto w-full max-w-[210mm] bg-white p-[14mm] text-ink shadow-sm print:max-w-none print:p-0 print:shadow-none">
-        {doc === "factura" ? (
-          <>
-            <header>
-              <h1 className="m-0 text-[26px] font-bold tracking-[-0.01em] uppercase">
-                {emp.name ?? "—"}
-              </h1>
-              <div className="mt-1 text-[12px] leading-[1.5]">
-                {emp.tax_id && <div>RUC. {emp.tax_id}</div>}
-                {(emp.address ?? "").split("\n").filter(Boolean).map((l, i) => (
-                  <div key={i}>{l}</div>
-                ))}
-                <div>
-                  {[
-                    emp.contact && `TEL: ${emp.contact}`,
-                    emp.email && `E-MAIL: ${emp.email}`,
-                    emp.website && `WEB: ${emp.website}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+      {/* En el teléfono la hoja conserva su ancho de papel y se desliza de lado:
+          encogerla a 390px dejaría la letra ilegible. Para mandarla desde el
+          teléfono está el PDF. Al imprimir no hay deslizamiento. */}
+      <div className="overflow-x-auto print:overflow-visible">
+        <div className="hoja mx-auto w-full max-w-[210mm] max-md:min-w-[210mm] bg-white p-[14mm] text-ink shadow-sm print:max-w-none print:p-0 print:shadow-none">
+          {doc === "factura" ? (
+            <>
+              <header>
+                <h1 className="m-0 text-[26px] font-bold tracking-[-0.01em] uppercase">
+                  {emp.name ?? "—"}
+                </h1>
+                <div className="mt-1 text-[12px] leading-[1.5]">
+                  {emp.tax_id && <div>RUC. {emp.tax_id}</div>}
+                  {(emp.address ?? "").split("\n").filter(Boolean).map((l, i) => (
+                    <div key={i}>{l}</div>
+                  ))}
+                  <div>
+                    {[
+                      emp.contact && `TEL: ${emp.contact}`,
+                      emp.email && `E-MAIL: ${emp.email}`,
+                      emp.website && `WEB: ${emp.website}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
                 </div>
-              </div>
-            </header>
+              </header>
 
-            <hr className="my-4 border-0 border-t-2 border-ink" />
+              <hr className="my-4 border-0 border-t-2 border-ink" />
 
-            <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-[12px]">
-              {[
-                ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
-                ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
-                ["Vendido a:", vendidoA, "Consignado a:", inv.consigned_to],
-                ["Dirección:", direccion, "Despachado:", inv.dispatched],
-                ["País:", pais, "Vendedor:", inv.salesperson],
-                ["Términos de Pago:", terminos, "Embarcado vía:", inv.shipped_via],
-              ].map(([ka, va, kb, vb], i) => (
-                <React.Fragment key={i}>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                    <span className="font-bold">{ka}</span>
-                    <span>{va || ""}</span>
-                  </div>
-                  <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
-                    <span className="font-bold">{kb}</span>
-                    <span>{vb || ""}</span>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
-
-            <table className="mt-5 w-full border-collapse text-[12px]">
-              <thead>
-                <tr>
-                  {["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"].map(
-                    (h, i) => (
-                      <th
-                        key={h}
-                        className={cn(
-                          "border border-ink px-2 py-1.5 text-center font-bold",
-                          i >= 4 && "w-[80px]"
-                        )}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {mercancia.map((l) => (
-                  <tr key={l.id}>
-                    <td className="border border-ink px-2 py-1.5 tabular-nums">
-                      {l.bultos == null ? "" : n0(l.bultos)}
-                    </td>
-                    <td className="border border-ink px-2 py-1.5 tabular-nums">
-                      {l.product?.sku ?? ""}
-                    </td>
-                    <td className="border border-ink px-2 py-1.5">{etiqueta(l)}</td>
-                    <td className="border border-ink px-2 py-1.5 tabular-nums">{cantidad(l)}</td>
-                    <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
-                      {usd(l.unit_price)}
-                    </td>
-                    <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
-                      {usd(importe(l))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <hr className="mt-4 mb-2 border-0 border-t-2 border-ink" />
-
-            <div className="flex flex-wrap items-start gap-x-10 gap-y-2 text-[12px]">
-              <span>
-                <b>Total Bultos:</b> {n0(totalBultos)}
-              </span>
-              <span>
-                <b>Total Peso:</b> {n2(totalPeso)}
-              </span>
-              {/* Subtotal, cada cargo por separado y el total: una sola columna
-                  alineada para que los importes se lean hacia abajo. */}
-              <div className="ml-auto grid min-w-[210px] grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1">
-                <span className="font-bold">Subtotal:</span>
-                <span className="text-right tabular-nums">{usd(subtotal)}</span>
-                {cargos.map((c) => (
-                  <React.Fragment key={c.id}>
-                    <span>{c.description || "Cargo"}:</span>
-                    <span className="text-right tabular-nums">{usd(importe(c))}</span>
+              <div className="grid grid-cols-2 gap-x-10 gap-y-2 text-[12px]">
+                {[
+                  ["Factura No.:", inv.invoice_num, "Orden de Compra:", inv.purchase_order],
+                  ["Fecha:", fecha(inv.date_created), "Marcas:", inv.marks],
+                  ["Vendido a:", vendidoA, "Consignado a:", inv.consigned_to],
+                  ["Dirección:", direccion, "Despachado:", inv.dispatched],
+                  ["País:", pais, "Vendedor:", inv.salesperson],
+                  ["Términos de Pago:", terminos, "Embarcado vía:", inv.shipped_via],
+                ].map(([ka, va, kb, vb], i) => (
+                  <React.Fragment key={i}>
+                    <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
+                      <span className="font-bold">{ka}</span>
+                      <span>{va || ""}</span>
+                    </div>
+                    <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-2">
+                      <span className="font-bold">{kb}</span>
+                      <span>{vb || ""}</span>
+                    </div>
                   </React.Fragment>
                 ))}
-                {cargos.length > 0 && <div className="col-span-2 border-t border-ink" />}
-                <span className="text-[13px] font-bold">TOTAL:</span>
-                <span className="text-right text-[13px] font-bold tabular-nums">
-                  {usd(inv.total)}
-                </span>
               </div>
-            </div>
 
-            {inv.notes && (
-              <div className="mt-6 text-[11px]">
-                <b>Notas:</b> {inv.notes}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <header className="text-center">
-              <div className="text-[15px] font-bold uppercase">{emp.name ?? "—"}</div>
-              <div className="text-[15px] font-bold uppercase">
-                Packing List (Lista de Empaque)
-              </div>
-            </header>
-
-            <div className="mt-4 text-[12px] leading-[1.9]">
-              <div>
-                <b>NOMBRE:</b> {vendidoA ?? ""}
-              </div>
-              <div className="flex flex-wrap gap-x-12">
-                <span>
-                  <b>FECHA:</b> {fecha(inv.date_created)}
-                </span>
-                <span>
-                  <b>PEDIDO:</b> {inv.purchase_order ?? ""}
-                </span>
-                <span>
-                  <b>FACTURA:</b> {inv.invoice_num}
-                </span>
-              </div>
-              <div>
-                <b>VENDEDOR:</b> {inv.salesperson ?? ""}
-              </div>
-              <div className="flex flex-wrap gap-x-12">
-                <span>
-                  <b>DIRECCION:</b> {direccion ?? ""}
-                </span>
-                <span>
-                  <b>MARCAS:</b> {inv.marks ?? ""}
-                </span>
-              </div>
-            </div>
-
-            <table className="mt-4 w-full border-collapse text-[12px]">
-              <thead>
-                <tr className="border-y border-ink">
-                  {["BULTOS", "PESO", "CUBICAJE", "REFERENCIA", "DESCRIPCION", "CANTIDAD"].map(
-                    (h) => (
-                      <th key={h} className="px-2 py-1.5 text-center font-bold">
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {mercancia.map((l) => (
-                  <tr key={l.id}>
-                    <td className="px-2 py-1 text-center tabular-nums">
-                      {l.bultos == null ? "" : n0(l.bultos)}
-                    </td>
-                    <td className="px-2 py-1 text-center tabular-nums">
-                      {n2(peso(l))}
-                    </td>
-                    <td className="px-2 py-1 text-center tabular-nums">
-                      {cubicaje(l).toFixed(1)}
-                    </td>
-                    <td className="px-2 py-1 text-center tabular-nums">{l.product?.sku ?? ""}</td>
-                    <td className="px-2 py-1 text-center">{etiqueta(l)}</td>
-                    <td className="px-2 py-1 text-center tabular-nums">{cantidad(l)}</td>
+              <table className="mt-5 w-full border-collapse text-[12px]">
+                <thead>
+                  <tr>
+                    {["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"].map(
+                      (h, i) => (
+                        <th
+                          key={h}
+                          className={cn(
+                            "border border-ink px-2 py-1.5 text-center font-bold",
+                            i >= 4 && "w-[80px]"
+                          )}
+                        >
+                          {h}
+                        </th>
+                      )
+                    )}
                   </tr>
-                ))}
-                <tr className="border-t border-ink font-bold">
-                  <td className="px-2 py-1 text-center tabular-nums">{n0(totalBultos)}</td>
-                  <td className="px-2 py-1 text-center tabular-nums">{n2(totalPeso)}</td>
-                  <td className="px-2 py-1 text-center tabular-nums">
-                    {totalCubicaje.toFixed(1)}
-                  </td>
-                  <td colSpan={3} />
-                </tr>
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {mercancia.map((l) => (
+                    <tr key={l.id}>
+                      <td className="border border-ink px-2 py-1.5 tabular-nums">
+                        {l.bultos == null ? "" : n0(l.bultos)}
+                      </td>
+                      <td className="border border-ink px-2 py-1.5 tabular-nums">
+                        {l.product?.sku ?? ""}
+                      </td>
+                      <td className="border border-ink px-2 py-1.5">{etiqueta(l)}</td>
+                      <td className="border border-ink px-2 py-1.5 tabular-nums">{cantidad(l)}</td>
+                      <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
+                        {usd(l.unit_price)}
+                      </td>
+                      <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
+                        {usd(importe(l))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            <div className="mt-5 text-center text-[13px] font-bold">
-              FIN DE LA LISTA DE EMPAQUE
-            </div>
+              <hr className="mt-4 mb-2 border-0 border-t-2 border-ink" />
 
-            {/* Signature block — the warehouse copy gets signed by hand */}
-            <div className="mt-14 grid grid-cols-4 gap-6 text-center text-[12px] font-bold">
-              {["APROBADO POR", "SACADO POR", "VERIFICADO POR", "EMPACADO POR"].map((t) => (
-                <div key={t}>
-                  <div className="mb-1.5 border-t border-ink" />
-                  {t}
+              <div className="flex flex-wrap items-start gap-x-10 gap-y-2 text-[12px]">
+                <span>
+                  <b>Total Bultos:</b> {n0(totalBultos)}
+                </span>
+                <span>
+                  <b>Total Peso:</b> {n2(totalPeso)}
+                </span>
+                {/* Subtotal, cada cargo por separado y el total: una sola columna
+                    alineada para que los importes se lean hacia abajo. */}
+                <div className="ml-auto grid min-w-[210px] grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-1">
+                  <span className="font-bold">Subtotal:</span>
+                  <span className="text-right tabular-nums">{usd(subtotal)}</span>
+                  {cargos.map((c) => (
+                    <React.Fragment key={c.id}>
+                      <span>{c.description || "Cargo"}:</span>
+                      <span className="text-right tabular-nums">{usd(importe(c))}</span>
+                    </React.Fragment>
+                  ))}
+                  {cargos.length > 0 && <div className="col-span-2 border-t border-ink" />}
+                  <span className="text-[13px] font-bold">TOTAL:</span>
+                  <span className="text-right text-[13px] font-bold tabular-nums">
+                    {usd(inv.total)}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+              </div>
 
-      <p className="mx-auto max-w-[210mm] text-xs text-neutral-700 print:hidden">
-        <b>Descargar PDF</b> genera el archivo directamente como{" "}
-        <b>
-          {nombreArchivo(doc === "factura" ? "Factura" : "PackingList", inv.invoice_num)}.pdf
-        </b>{" "}
-        — con texto real, no una captura, así que se puede buscar y copiar. El botón de impresora
-        abre el diálogo del navegador por si prefieres mandarlo a papel.
-      </p>
-    </div>
+              {inv.notes && (
+                <div className="mt-6 text-[11px]">
+                  <b>Notas:</b> {inv.notes}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <header className="text-center">
+                <div className="text-[15px] font-bold uppercase">{emp.name ?? "—"}</div>
+                <div className="text-[15px] font-bold uppercase">
+                  Packing List (Lista de Empaque)
+                </div>
+              </header>
+
+              <div className="mt-4 text-[12px] leading-[1.9]">
+                <div>
+                  <b>NOMBRE:</b> {vendidoA ?? ""}
+                </div>
+                <div className="flex flex-wrap gap-x-12">
+                  <span>
+                    <b>FECHA:</b> {fecha(inv.date_created)}
+                  </span>
+                  <span>
+                    <b>PEDIDO:</b> {inv.purchase_order ?? ""}
+                  </span>
+                  <span>
+                    <b>FACTURA:</b> {inv.invoice_num}
+                  </span>
+                </div>
+                <div>
+                  <b>VENDEDOR:</b> {inv.salesperson ?? ""}
+                </div>
+                <div className="flex flex-wrap gap-x-12">
+                  <span>
+                    <b>DIRECCION:</b> {direccion ?? ""}
+                  </span>
+                  <span>
+                    <b>MARCAS:</b> {inv.marks ?? ""}
+                  </span>
+                </div>
+              </div>
+
+              <table className="mt-4 w-full border-collapse text-[12px]">
+                <thead>
+                  <tr className="border-y border-ink">
+                    {["BULTOS", "PESO", "CUBICAJE", "REFERENCIA", "DESCRIPCION", "CANTIDAD"].map(
+                      (h) => (
+                        <th key={h} className="px-2 py-1.5 text-center font-bold">
+                          {h}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {mercancia.map((l) => (
+                    <tr key={l.id}>
+                      <td className="px-2 py-1 text-center tabular-nums">
+                        {l.bultos == null ? "" : n0(l.bultos)}
+                      </td>
+                      <td className="px-2 py-1 text-center tabular-nums">
+                        {n2(peso(l))}
+                      </td>
+                      <td className="px-2 py-1 text-center tabular-nums">
+                        {cubicaje(l).toFixed(1)}
+                      </td>
+                      <td className="px-2 py-1 text-center tabular-nums">{l.product?.sku ?? ""}</td>
+                      <td className="px-2 py-1 text-center">{etiqueta(l)}</td>
+                      <td className="px-2 py-1 text-center tabular-nums">{cantidad(l)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-ink font-bold">
+                    <td className="px-2 py-1 text-center tabular-nums">{n0(totalBultos)}</td>
+                    <td className="px-2 py-1 text-center tabular-nums">{n2(totalPeso)}</td>
+                    <td className="px-2 py-1 text-center tabular-nums">
+                      {totalCubicaje.toFixed(1)}
+                    </td>
+                    <td colSpan={3} />
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="mt-5 text-center text-[13px] font-bold">
+                FIN DE LA LISTA DE EMPAQUE
+              </div>
+
+              {/* Signature block — the warehouse copy gets signed by hand */}
+              <div className="mt-14 grid grid-cols-4 gap-6 text-center text-[12px] font-bold">
+                {["APROBADO POR", "SACADO POR", "VERIFICADO POR", "EMPACADO POR"].map((t) => (
+                  <div key={t}>
+                    <div className="mb-1.5 border-t border-ink" />
+                    {t}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="mx-auto max-w-[210mm] text-xs text-neutral-700 print:hidden">
+          <b>Descargar PDF</b> genera el archivo directamente como{" "}
+          <b>
+            {nombreArchivo(doc === "factura" ? "Factura" : "PackingList", inv.invoice_num)}.pdf
+          </b>{" "}
+          — con texto real, no una captura, así que se puede buscar y copiar. El botón de impresora
+          abre el diálogo del navegador por si prefieres mandarlo a papel.
+        </p>
+      </div>
+      </div>
   )
 }

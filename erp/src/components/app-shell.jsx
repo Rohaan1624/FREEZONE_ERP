@@ -59,27 +59,27 @@ export function AppShell() {
 
        Los `print:` no son cosmética: sin ellos una factura de tres páginas se
        imprimiría recortada al alto de la pantalla. */
-    <div className="flex h-svh flex-col overflow-hidden bg-paper px-6 pt-4 pb-8 text-ink print:block print:h-auto print:overflow-visible print:bg-white print:p-0">
+    <div className="flex h-svh flex-col overflow-hidden bg-paper px-4 pt-3 pb-0 text-ink md:px-6 md:pt-4 md:pb-8 print:block print:h-auto print:overflow-visible print:bg-white print:p-0">
       <div className="mx-auto flex min-h-0 w-full max-w-[1460px] flex-1 flex-col gap-4 print:min-h-0 print:block">
-        <header className="flex items-center gap-4 print:hidden">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center gap-3 md:gap-4 print:hidden">
+          <div className="flex min-w-0 items-center gap-3">
             {empresa?.logo_url ? (
               <img
                 src={empresa.logo_url}
                 alt=""
-                className="size-10 rounded-2xl bg-newsprint object-contain"
+                className="size-9 shrink-0 rounded-2xl bg-newsprint object-contain md:size-10"
               />
             ) : (
-              <div className="grid size-10 place-items-center rounded-2xl bg-ink text-[17px] font-semibold text-paper">
+              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-ink text-[15px] font-semibold text-paper md:size-10 md:text-[17px]">
                 {iniciales}
               </div>
             )}
-            <div className="text-[19px] leading-tight font-semibold tracking-[-0.02em]">
+            <div className="truncate text-[17px] leading-tight font-semibold tracking-[-0.02em] md:text-[19px]">
               {nombre}
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <NavLink
               to="/empresa"
               className="grid size-8 place-items-center rounded-md text-neutral-600 hover:bg-newsprint hover:text-ink"
@@ -87,7 +87,8 @@ export function AppShell() {
             >
               <Settings className="size-[18px]" />
             </NavLink>
-            <span className="max-w-[24ch] truncate text-[13px] text-neutral-600">
+            {/* En el teléfono el correo no cabe y no hace falta: ya se sabe quién es. */}
+            <span className="hidden max-w-[24ch] truncate text-[13px] text-neutral-600 md:inline">
               {usuario?.email}
             </span>
             <button
@@ -103,7 +104,7 @@ export function AppShell() {
         {/* Riel con filete, no píldoras con iconos en círculos: ese gesto es el
             que hace que un ERP parezca una plantilla, se come una fila entera
             de alto y deja de escalar pasadas seis secciones. */}
-        <nav className="flex flex-wrap gap-7 border-b border-neutral-300 print:hidden">
+        <nav className="hidden flex-wrap gap-7 border-b border-neutral-300 md:flex print:hidden">
           {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -127,10 +128,45 @@ export function AppShell() {
         {/* La región que se desplaza. `min-h-0` es obligatorio: sin él un hijo
             flex se niega a encogerse por debajo de su contenido y el scroll se
             va a la ventana, que es justo lo que estamos evitando. */}
-        <div className="min-h-0 flex-1 overflow-y-auto print:h-auto print:overflow-visible">
+        <div
+          data-scroll
+          className="min-h-0 flex-1 overflow-y-auto pb-6 md:pb-0 print:h-auto print:overflow-visible print:pb-0"
+        >
           <Outlet context={{ empresa, recargarEmpresa: setEmpresa }} />
         </div>
       </div>
+
+      {/* En el teléfono el menú va abajo, al alcance del pulgar, y no se
+          envuelve en dos renglones como el riel de arriba. Queda FUERA de la
+          región que desplaza, así que siempre está a la vista. */}
+      <nav className="-mx-4 flex shrink-0 border-t border-neutral-300 bg-paper pb-[env(safe-area-inset-bottom,0px)] md:hidden print:hidden">
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              cn(
+                "flex min-w-0 flex-1 flex-col items-center gap-1 pt-2 pb-1.5 text-[11px] no-underline",
+                isActive ? "font-semibold text-ink" : "text-neutral-600"
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <span
+                  className={cn(
+                    "grid h-7 w-12 place-items-center rounded-full transition-colors",
+                    isActive && "bg-ink text-paper"
+                  )}
+                >
+                  <Icon className="size-[18px]" />
+                </span>
+                <span className="max-w-full truncate">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   )
 }
