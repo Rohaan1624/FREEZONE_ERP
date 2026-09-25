@@ -7,15 +7,15 @@
          queda debajo de la raya de inicio. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <title>ERP ZL · Facturación e inventario</title>
+    <title>ERP ZL · El ERP para la Zona Libre de Colón</title>
     <meta
       name="description"
-      content="Sistema interno de facturación, inventario, compras y cuentas por cobrar."
+      content="Inventario, costos de importación y facturación en un solo lugar. Para quien compra en Asia y reexporta a Latinoamérica desde la Zona Libre de Colón."
     />
+    <link rel="canonical" href="https://freezone.cimatechpty.com/" />
 
-    <!-- Herramienta interna detrás de login: NO queremos que se indexe.
-         Un ERP en resultados de búsqueda solo invita a que lo sondeen. -->
-    <meta name="robots" content="noindex, nofollow" />
+    <!-- Se indexa: la raíz es la portada pública. Las pantallas de la app
+         quedan fuera por public/robots.txt (y de todos modos piden sesión). -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- iOS ignora los iconos SVG en la pantalla de inicio: sin un PNG pone una
@@ -35,16 +35,21 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#f3f2f2" />
 
-    <!-- Previsualización al compartir el enlace por WhatsApp o Slack -->
+    <!-- La tarjeta que arman WhatsApp, correo o LinkedIn al pegar el enlace.
+         URLs absolutas: con rutas relativas muchas apps no encuentran la
+         imagen. Y PNG, no SVG: WhatsApp no muestra SVG. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="ERP ZL" />
     <meta property="og:locale" content="es_ES" />
-    <meta property="og:title" content="ERP ZL · Facturación e inventario" />
+    <meta property="og:title" content="ERP ZL · El ERP para la Zona Libre de Colón" />
+    <meta property="og:url" content="https://freezone.cimatechpty.com/" />
     <meta
       property="og:description"
-      content="Sistema interno de facturación, inventario, compras y cuentas por cobrar."
+      content="Inventario, costos de importación y facturación en un solo lugar. Para quien compra en Asia y reexporta a Latinoamérica desde la Zona Libre de Colón."
     />
-    <meta property="og:image" content="/favicon.svg" />
+    <meta property="og:image" content="https://freezone.cimatechpty.com/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
     <meta name="twitter:card" content="summary" />
 
     <!-- index.css hace @import de Source Serif 4 desde Google Fonts, lo que

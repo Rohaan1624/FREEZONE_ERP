@@ -1,0 +1,17 @@
+# La portada es pública y se indexa. Todo lo demás es la aplicación: pide
+# sesión, así que no hay nada que mostrar en un buscador.
+User-agent: *
+Allow: /$
+Allow: /registro
+Disallow: /login
+Disallow: /nueva-clave
+Disallow: /resumen
+Disallow: /facturas
+Disallow: /clientes
+Disallow: /productos
+Disallow: /entradas
+Disallow: /empresa
+Disallow: /importar
+Disallow: /asistente
+
+Sitemap: https://freezone.cimatechpty.com/sitemap.xml
