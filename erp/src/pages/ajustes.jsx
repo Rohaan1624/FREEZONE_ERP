@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
+import { useBuscarProductos } from "@/lib/buscar-productos"
 import { n0, fecha } from "@/lib/format"
 import { SubNavInventario } from "@/components/sub-nav-inventario"
 
@@ -25,7 +26,6 @@ const MOTIVOS = {
 
 export default function Ajustes() {
   const [filas, setFilas] = React.useState([])
-  const [productos, setProductos] = React.useState([])
   const [cargando, setCargando] = React.useState(true)
   const [error, setError] = React.useState("")
   const [recarga, setRecarga] = React.useState(0)
@@ -35,20 +35,18 @@ export default function Ajustes() {
 
   React.useEffect(() => {
     let vivo = true
-    Promise.all([
-      supabase
-        .from("adjustment")
-        .select("*, product(sku,description,unit,stock)")
-        .order("date_created", { ascending: false }),
-      supabase.from("product").select("id,sku,description,unit,stock").order("sku"),
-    ]).then(([a, p]) => {
-      if (!vivo) return
-      const e = a.error || p.error
-      if (e) setError(e.message)
-      setFilas(a.data ?? [])
-      setProductos(p.data ?? [])
-      setCargando(false)
-    })
+    // El producto viene con el ajuste (con su id): la corrección lo reutiliza
+    // sin tener que cargar el catálogo entero.
+    supabase
+      .from("adjustment")
+      .select("*, product(id,sku,description,unit,stock)")
+      .order("date_created", { ascending: false })
+      .then(({ data, error }) => {
+        if (!vivo) return
+        if (error) setError(error.message)
+        setFilas(data ?? [])
+        setCargando(false)
+      })
     return () => {
       vivo = false
     }
@@ -81,10 +79,7 @@ export default function Ajustes() {
     }
   }
 
-  const q = busca.trim().toLowerCase()
-  const sugerencias = q
-    ? productos.filter((p) => `${p.sku} ${p.description ?? ""}`.toLowerCase().includes(q)).slice(0, 4)
-    : []
+  const { sugerencias } = useBuscarProductos(busca, "id,sku,description,unit,stock")
 
   const elegir = (p) => {
     setForm((f) => ({ ...f, producto: p }))
@@ -370,7 +365,7 @@ export default function Ajustes() {
                 <button
                   onClick={() =>
                     abrir({
-                      producto: productos.find((p) => p.id === a.product_id) ?? a.product,
+                      producto: a.product,
                       type: a.type === "add" ? "remove" : "add",
                       qty: String(a.qty),
                       description: `Corrección de ${fecha(a.date_created)}: ${a.description ?? ""}`.trim(),

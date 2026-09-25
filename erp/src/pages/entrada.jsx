@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
 import { CrearProducto } from "@/components/crear-rapido"
+import { useBuscarProductos } from "@/lib/buscar-productos"
 import { usd, n0, fecha, hoyISO } from "@/lib/format"
 import { mul } from "@/lib/dinero"
 // The qty <-> bultos conversion is the same rule as on an invoice, so it comes
@@ -81,6 +82,8 @@ const lineaCargo = () => ({
   cost_unit: "",
 })
 
+const COLUMNAS_PRODUCTO = "id,sku,description,unit,stock,cost_price"
+
 export default function Entrada() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -88,7 +91,6 @@ export default function Entrada() {
   // El membrete del PDF sale de la empresa que el layout ya tiene cargada.
   const { empresa } = useOutletContext()
 
-  const [productos, setProductos] = React.useState([])
   const [compra, setCompra] = React.useState(null)
   const [cargando, setCargando] = React.useState(!creando)
   const [error, setError] = React.useState("")
@@ -107,18 +109,6 @@ export default function Entrada() {
   })
   const [lineas, setLineas] = React.useState([])
   const [semilla, setSemilla] = React.useState(null)
-
-  React.useEffect(() => {
-    let vivo = true
-    supabase
-      .from("product")
-      .select("id,sku,description,unit,stock,cost_price")
-      .order("sku")
-      .then(({ data }) => vivo && setProductos(data ?? []))
-    return () => {
-      vivo = false
-    }
-  }, [])
 
   React.useEffect(() => {
     if (creando) return
@@ -196,10 +186,7 @@ export default function Entrada() {
   // '1.2000' y '+20.0%' dicen lo mismo; el porcentaje es el que la gente lee.
   const factorPct = factor ? factor.minus(1).times(100).toFixed(1) : null
 
-  const q = busca.trim().toLowerCase()
-  const sugerencias = q
-    ? productos.filter((p) => `${p.sku} ${p.description ?? ""}`.toLowerCase().includes(q)).slice(0, 4)
-    : []
+  const { sugerencias, buscando: consultando } = useBuscarProductos(busca, COLUMNAS_PRODUCTO)
 
   const agregarProd = (p) => {
     setLineas((ls) => (ls.some((l) => l.product_id === p.id) ? ls : ls.concat([lineaProducto(p)])))
@@ -469,7 +456,7 @@ export default function Entrada() {
             )}
           </div>
 
-          {editable && busca.trim() && sugerencias.length === 0 && (
+          {editable && busca.trim() && !consultando && sugerencias.length === 0 && (
             <button
               onClick={() => setNuevoSku(true)}
               className="mb-3 flex w-full items-center gap-2 rounded-md border border-neutral-300 bg-white p-3 text-left text-[13px] transition-colors hover:bg-neutral-100"
@@ -774,7 +761,6 @@ export default function Entrada() {
         skuInicial={busca.trim()}
         onCancelar={() => setNuevoSku(false)}
         onCreado={(p) => {
-          setProductos((ps) => [...ps, p].sort((a, b) => a.sku.localeCompare(b.sku)))
           agregarProd(p)
           setNuevoSku(false)
         }}

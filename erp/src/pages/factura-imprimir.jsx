@@ -188,9 +188,13 @@ export default function FacturaImprimir() {
                   <div key={i}>{l}</div>
                 ))}
                 <div>
-                  {emp.contact ? `TEL: ${emp.contact}` : ""}
-                  {emp.contact && emp.email ? " · " : ""}
-                  {emp.email ? `E-MAIL: ${emp.email}` : ""}
+                  {[
+                    emp.contact && `TEL: ${emp.contact}`,
+                    emp.email && `E-MAIL: ${emp.email}`,
+                    emp.website && `WEB: ${emp.website}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </div>
               </div>
             </header>

@@ -15,11 +15,13 @@ import {
   Ship,
   UserPlus,
   PackagePlus,
+  Search,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { supabase, rpc } from "@/lib/supabase"
 import { CrearCliente, CrearProducto } from "@/components/crear-rapido"
+import { BuscarCliente, COLUMNAS_CLIENTE } from "@/components/buscar-cliente"
 import { Confirmar } from "@/components/confirmar"
 import { usd, n0, fecha, hoyISO, masDias } from "@/lib/format"
 import {
@@ -92,7 +94,9 @@ export default function FacturaForm() {
   const navigate = useNavigate()
   const { id } = useParams()
   const editando = Boolean(id)
-  const [clientes, setClientes] = React.useState([])
+  // Solo el cliente ELEGIDO vive aquí: la lista completa nunca se carga
+  // (con miles de clientes sería una consulta enorme por cada factura).
+  const [cliente, setCliente] = React.useState(null)
   const [productos, setProductos] = React.useState([])
   const [clienteId, setClienteId] = React.useState("")
   const [tab, setTab] = React.useState("product")
@@ -104,6 +108,9 @@ export default function FacturaForm() {
   // moviera existencias en cuanto alguien pulsaba guardar.
   const [descontar, setDescontar] = React.useState(false)
   const [busca, setBusca] = React.useState("")
+  // Dos caminos separados: agregar un SKU que ya existe o crear uno nuevo.
+  // Mientras se busca no se puede crear — se vuelve o se termina de agregar.
+  const [buscando, setBuscando] = React.useState(false)
   const [error, setError] = React.useState("")
   const [guardando, setGuardando] = React.useState(false)
   const [cargando, setCargando] = React.useState(editando)
@@ -120,19 +127,6 @@ export default function FacturaForm() {
   const [base, setBase] = React.useState(null)
 
   React.useEffect(() => {
-    supabase
-      .from("client")
-      // address y country se traen para poder enseñarlos como placeholder de
-      // los campos alternos: así se ve qué se va a imprimir si se dejan vacíos.
-      .select("id,name,payment_terms,balance,address,country")
-      .order("name")
-      .then(({ data }) => {
-        setClientes(data ?? [])
-        if (data?.length) {
-          setClienteId(data[0].id)
-          setDias(String(data[0].payment_terms ?? 0))
-        }
-      })
     supabase
       .from("product")
       .select("id,sku,description,unit,qty_unit,stock,sale_price")
@@ -157,6 +151,14 @@ export default function FacturaForm() {
         else if (data) {
           setOriginal(data)
           setClienteId(data.client_id)
+          // Una sola fila por id. address y country van para el placeholder
+          // de los campos alternos: así se ve qué se imprime si se dejan vacíos.
+          supabase
+            .from("client")
+            .select(COLUMNAS_CLIENTE)
+            .eq("id", data.client_id)
+            .maybeSingle()
+            .then(({ data: c }) => vivo && setCliente(c))
           setNotas(data.notes ?? "")
           setVence(data.due_date ?? "")
           setEmitida(String(data.date_created ?? "").slice(0, 10))
@@ -187,12 +189,13 @@ export default function FacturaForm() {
     }
   }, [id, editando])
 
-  const cliente = clientes.find((c) => c.id === clienteId)
-
-  function elegirCliente(id) {
-    setClienteId(id)
-    const c = clientes.find((x) => x.id === id)
-    if (c) setDias(String(c.payment_terms ?? 0))
+  function elegirCliente(c) {
+    setCliente(c)
+    setClienteId(c.id)
+    // Al crear, los días del cliente fijan el vencimiento. Al editar solo
+    // cambian los días: mover la fecha de una factura ya emitida no toca.
+    if (editando) setDias(String(c.payment_terms ?? 0))
+    else aplicarTerminos(String(c.payment_terms ?? 0))
   }
 
   // Every mutation goes through lineas.js and addresses lines by their stable
@@ -202,7 +205,12 @@ export default function FacturaForm() {
 
   const agregar = (p) => {
     setLineas((ls) => agregaProducto(ls, p))
+    cerrarBusqueda()
+  }
+
+  function cerrarBusqueda() {
     setBusca("")
+    setBuscando(false)
   }
 
   const visibles = porTipo(lineas, tab)
@@ -385,18 +393,11 @@ export default function FacturaForm() {
           <div className="casilla px-4 py-2.5">
             <span className="rotulo">Cliente</span>
             <div className="flex items-center gap-2">
-              <select
-                value={clienteId}
-                onChange={(e) => elegirCliente(e.target.value)}
-                className="mt-0.5 min-w-0 flex-1 bg-transparent text-base outline-none"
-              >
-                {clientes.length === 0 && <option value="">Todavía no hay clientes</option>}
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <BuscarCliente
+                cliente={cliente}
+                onElegir={elegirCliente}
+                className="min-w-0 flex-1"
+              />
               {/* Alta sin salir: navegar a /clientes se llevaría los renglones. */}
               <button
                 type="button"
@@ -555,12 +556,17 @@ export default function FacturaForm() {
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.56fr)]">
         <div className="flex flex-col gap-3">
           <section className="registro p-6">
-            <div className="mb-4 flex flex-wrap items-center gap-3">
+            {/* Pestañas arriba y las acciones en su propio renglón, centradas.
+                Al buscar, la caja ocupa todo el ancho. */}
+            <div className="mb-4 flex flex-col items-start gap-3">
               <div className="inline-flex overflow-hidden rounded-md border border-neutral-300">
                 {TABS.map(({ id, label, icon: Icon }, i) => (
                   <button
                     key={id}
-                    onClick={() => setTab(id)}
+                    onClick={() => {
+                      setTab(id)
+                      cerrarBusqueda()
+                    }}
                     className={cn(
                       "flex items-center gap-1.5 px-4 py-1.5 text-[13px] transition-colors",
                       i > 0 && "border-l border-neutral-300",
@@ -572,9 +578,17 @@ export default function FacturaForm() {
                   </button>
                 ))}
               </div>
-              {tab === "product" ? (
-                <div className="ml-auto flex items-center gap-2">
+              {tab === "product" && buscando ? (
+                <div className="flex items-center gap-2 self-stretch">
+                  <button
+                    onClick={cerrarBusqueda}
+                    className="boton boton-claro shrink-0 gap-1.5 text-[13px]"
+                  >
+                    <ArrowLeft className="size-4" />
+                    Volver
+                  </button>
                   <input
+                    autoFocus
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     onKeyDown={(e) => {
@@ -584,23 +598,34 @@ export default function FacturaForm() {
                         e.preventDefault()
                         agregar(sugerencias[0])
                       }
+                      if (e.key === "Escape") cerrarBusqueda()
                     }}
-                    placeholder="Buscar SKU para agregar"
-                    className="entrada-texto w-[250px]"
+                    placeholder="Buscar por SKU o descripción"
+                    className="entrada-texto min-w-0 flex-1"
                   />
+                </div>
+              ) : tab === "product" ? (
+                <div className="flex items-center gap-2 self-center">
+                  <button
+                    onClick={() => setBuscando(true)}
+                    className="boton boton-claro shrink-0 gap-1.5 text-[13px]"
+                  >
+                    <Search className="size-4" />
+                    Agregar del inventario
+                  </button>
                   <button
                     onClick={() => setNuevoSku(true)}
                     title="Crear un SKU sin salir de la factura"
                     className="boton boton-claro shrink-0 gap-1.5 text-[13px]"
                   >
                     <PackagePlus className="size-4" />
-                    Nuevo SKU
+                    Crear SKU nuevo
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => setLineas((ls) => agrega(ls, lineaSuelta(tab)))}
-                  className="boton boton-claro ml-auto text-[13px]"
+                  className="boton boton-claro self-center text-[13px]"
                 >
                   <Plus className="size-4" />
                   Agregar renglón
@@ -608,22 +633,17 @@ export default function FacturaForm() {
               )}
             </div>
 
+            {/* Sin coincidencias: se dice y ya. Crear va por su propio botón,
+                después de volver — mezclar los dos caminos era lo que confundía. */}
+            {tab === "product" && buscando && busca.trim() && sugerencias.length === 0 && (
+              <div className="mb-3 casilla p-3 text-[13px] text-neutral-700">
+                Ningún SKU coincide con «<b>{busca.trim()}</b>».
+              </div>
+            )}
+
             {/* A search result is not obviously an action, so say so outright:
                 a standing instruction, a per-row "Agregar" pill with a plus,
                 and a pointer cursor. Enter adds the first hit. */}
-            {/* Buscó algo y no existe: ofrecer crearlo con ese nombre ya puesto */}
-            {tab === "product" && busca.trim() && sugerencias.length === 0 && (
-              <button
-                onClick={() => setNuevoSku(true)}
-                className="mb-3 flex w-full items-center gap-2 casilla p-3 text-left text-[13px] hover:shadow-sm"
-              >
-                <PackagePlus className="size-4 shrink-0" />
-                <span>
-                  Ningún SKU coincide con «<b>{busca.trim()}</b>». Crearlo ahora.
-                </span>
-              </button>
-            )}
-
             {sugerencias.length > 0 && (
               <div className="mb-3 casilla/60 p-2">
                 <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
@@ -668,7 +688,7 @@ export default function FacturaForm() {
             {visibles.length === 0 && (
               <div className="casilla p-10 text-center">
                 <div className="text-base font-semibold">
-                  {tab === "product" ? "Busca un SKU arriba para agregarlo" : "Sin renglones"}
+                  {tab === "product" ? "Agrega un SKU del inventario o crea uno nuevo" : "Sin renglones"}
                 </div>
                 <div className="text-[13px] text-neutral-700">
                   {tab === "product"
@@ -931,16 +951,13 @@ export default function FacturaForm() {
         onCancelar={() => setNuevoCliente(false)}
         onCreado={(c) => {
           // Entra a la lista Y queda elegido: es justo para lo que se abrió.
-          setClientes((cs) => [...cs, c].sort((a, b) => a.name.localeCompare(b.name)))
-          setClienteId(c.id)
-          aplicarTerminos(String(c.payment_terms ?? 0))
+          elegirCliente(c)
           setNuevoCliente(false)
         }}
       />
 
       <CrearProducto
         abierto={nuevoSku}
-        skuInicial={busca.trim()}
         onCancelar={() => setNuevoSku(false)}
         onCreado={(p) => {
           setProductos((ps) => [...ps, p].sort((a, b) => a.sku.localeCompare(b.sku)))

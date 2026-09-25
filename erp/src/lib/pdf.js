@@ -81,7 +81,11 @@ function cabeceraEmpresa(doc, emp, y) {
   const renglones = [
     emp.tax_id ? `RUC. ${emp.tax_id}` : null,
     ...texto(emp.address).split("\n").filter(Boolean),
-    [emp.contact ? `TEL: ${emp.contact}` : null, emp.email ? `E-MAIL: ${emp.email}` : null]
+    [
+      emp.contact ? `TEL: ${emp.contact}` : null,
+      emp.email ? `E-MAIL: ${emp.email}` : null,
+      emp.website ? `WEB: ${texto(emp.website)}` : null,
+    ]
       .filter(Boolean)
       .join(" · ") || null,
   ].filter(Boolean)
