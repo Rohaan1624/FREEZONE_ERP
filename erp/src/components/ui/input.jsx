@@ -41,7 +41,7 @@ function InputTile({
       )}
       {...props}>
       <span
-        className="block text-[10px] tracking-[0.1em] uppercase text-[color-mix(in_srgb,var(--foreground)_50%,transparent)]">
+        className="block text-[12px] font-medium text-neutral-600">
         {label}
       </span>
       {children}

@@ -15,7 +15,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[22px] bg-card py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(6)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:rounded-[16px] data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[22px] *:[img:last-child]:rounded-b-[22px]",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[22px] border border-ink/[0.05] bg-card py-(--card-spacing) shadow-md text-sm text-card-foreground [--card-spacing:--spacing(6)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:rounded-[16px] data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[22px] *:[img:last-child]:rounded-b-[22px]",
         className
       )}
       {...props} />
@@ -37,7 +37,7 @@ function CardHeader({
   );
 }
 
-// The app's kicker: 10px uppercase, wide tracking, quiet ink.
+// El rótulo de la app: 12px, peso medio, tinta tenue.
 function CardKicker({
   className,
   ...props
@@ -46,7 +46,7 @@ function CardKicker({
     <div
       data-slot="card-kicker"
       className={cn(
-        "text-[10px] font-normal tracking-[0.1em] uppercase text-[color-mix(in_srgb,var(--foreground)_55%,transparent)]",
+        "text-[12px] font-medium text-neutral-600",
         className
       )}
       {...props} />

@@ -66,7 +66,7 @@ const fieldVariants = cva("group/field flex w-full gap-2 data-[invalid=true]:tex
     variant: {
       plain: "",
       tile:
-        "gap-0.5 rounded-[16px] bg-background px-4 py-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring [&_[data-slot=input]]:h-auto [&_[data-slot=input]]:border-0 [&_[data-slot=input]]:bg-transparent [&_[data-slot=input]]:px-0 [&_[data-slot=input]]:text-base [&_[data-slot=input]]:focus-visible:outline-none",
+        "gap-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-xs focus-within:border-ink [&_[data-slot=input]]:h-auto [&_[data-slot=input]]:border-0 [&_[data-slot=input]]:bg-transparent [&_[data-slot=input]]:px-0 [&_[data-slot=input]]:text-base [&_[data-slot=input]]:focus-visible:outline-none",
     },
   },
   defaultVariants: {
@@ -171,7 +171,7 @@ function FieldSeparator({
       <Separator className="absolute inset-0 top-1/2" />
       {children && (
         <span
-          className="relative mx-auto block w-fit bg-background px-2 text-[10px] tracking-[0.1em] uppercase text-muted-foreground"
+          className="relative mx-auto block w-fit bg-background px-2 text-[12px] font-medium text-muted-foreground"
           data-slot="field-separator-content">
           {children}
         </span>

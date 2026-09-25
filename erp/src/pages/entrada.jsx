@@ -470,7 +470,7 @@ export default function Entrada() {
 
           {sugerencias.length > 0 && (
             <div className="mb-3 rounded-md border border-neutral-300 bg-paper p-2">
-              <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
+              <div className="hidden items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700 md:flex">
                 <CornerDownLeft className="size-3.5" />
                 Haz clic en un SKU para agregarlo — o pulsa Enter para el primero
               </div>
@@ -479,23 +479,30 @@ export default function Entrada() {
                   <button
                     key={p.id}
                     onClick={() => agregarProd(p)}
-                    className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 rounded-md border border-neutral-300 bg-white p-2.5 text-left transition-colors hover:bg-neutral-100 focus-visible:border-ink focus-visible:outline-none"
+                    className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] rounded-md border border-neutral-300 bg-white p-2.5 text-left transition-colors hover:bg-neutral-100 focus-visible:border-ink focus-visible:outline-none"
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm">{p.description || p.sku}</div>
                       <div className="text-[11px] text-neutral-700 tabular-nums">{p.sku}</div>
+                      {/* En el teléfono existencia y costo bajan aquí. */}
+                      <div className="text-[12px] text-neutral-700 tabular-nums md:hidden">
+                        existencia {n0(p.stock)} ·{" "}
+                        <span className="font-semibold text-ink">
+                          {p.cost_price == null ? "sin costo" : usd(p.cost_price)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-xs text-neutral-700 tabular-nums">
+                    <div className="hidden text-xs text-neutral-700 tabular-nums md:block">
                       existencia {n0(p.stock)}
                     </div>
-                    <div className="text-sm tabular-nums">
+                    <div className="hidden text-sm tabular-nums md:block">
                       {p.cost_price == null ? "sin costo" : usd(p.cost_price)}
                     </div>
-                    <span className="flex items-center gap-1.5 rounded-md bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
+                    <span className="flex size-9 items-center justify-center gap-1.5 rounded-full bg-newsprint text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper md:size-auto md:rounded-md md:px-3 md:py-1.5">
                       <PlusCircle className="size-4" />
-                      Agregar
+                      <span className="hidden md:inline">Agregar</span>
                       {i === 0 && (
-                        <kbd className="ml-0.5 rounded bg-ink/10 px-1 py-px font-sans text-[10px] group-hover:bg-paper/20">
+                        <kbd className="ml-0.5 hidden rounded bg-ink/10 md:inline px-1 py-px font-sans text-[10px] group-hover:bg-paper/20">
                           ⏎
                         </kbd>
                       )}

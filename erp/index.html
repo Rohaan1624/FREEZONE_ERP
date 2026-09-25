@@ -52,12 +52,6 @@
     <meta property="og:image:height" content="512" />
     <meta name="twitter:card" content="summary" />
 
-    <!-- index.css hace @import de Source Serif 4 desde Google Fonts, lo que
-         encadena dos conexiones antes de que se vea texto. Esto las abre por
-         adelantado. crossorigin es obligatorio en gstatic (sirve las fuentes). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
     <style>
       /* Pantalla de carga inline: sin esto se ve un flash blanco mientras
          descarga el bundle. React reemplaza el contenido de #root al montar,
@@ -73,7 +67,7 @@
         align-content: center;
         background: #f3f2f2;
         color: #201e1d;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       }
       #cargando .marca {
         width: 52px;
@@ -123,7 +117,7 @@
     <noscript>
       <div
         style="
-          font-family: Georgia, serif;
+          font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
           max-width: 42ch;
           margin: 15vh auto;
           padding: 0 24px;

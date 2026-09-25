@@ -1,4 +1,3 @@
-import "@fontsource-variable/geist"
 import { Link, Navigate } from "react-router-dom"
 import {
   ArrowRight,

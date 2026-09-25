@@ -1,19 +1,25 @@
-@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..700;1,8..60,300..700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Broadsheet — newsprint ink on paper. Source Serif 4 throughout, no sans for
-   UI chrome, no process accents: hierarchy comes from the serif scale, weight
-   and whitespace. La referencia es la papelería de una factura impresa, que es
-   lo que esta gente lleva décadas leyendo. */
+/* Tinta sobre papel, en sans. Sin colores de proceso: la jerarquía sale del
+   tamaño, el peso y el espacio. Superficies blancas redondeadas con sombra
+   suave sobre el gris de fondo; los renglones de las listas son tarjetas
+   sueltas. La fuente (Geist) se carga en main.jsx desde @fontsource, sin
+   pedirla a Google Fonts. */
 @custom-variant dark (&:is(.dark *));
 
+/* Ventana baja: una laptop con el navegador al 110 % o más de zoom queda en
+   menos de 760px de alto útil. El riel de navegación se compacta con esto
+   para que los botones de abajo (empresa, cerrar sesión) no se salgan; con
+   `muybajo` (zoom de 150 % en adelante) se achica un paso más. */
+@custom-variant bajo (@media (max-height: 760px));
+@custom-variant muybajo (@media (max-height: 560px));
+
 @theme {
-  /* One serif for headings and body — the serif IS the chrome. */
-  --font-sans: "Source Serif 4", ui-serif, Georgia, serif;
-  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
-  --font-heading: "Source Serif 4", ui-serif, Georgia, serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* Broadsheet neutral ramp (OKLCH-derived, one shared lightness scale). */
@@ -33,13 +39,14 @@
   /* Density 1.25× — matches the design system's --space-* scale. */
   --spacing: 5px;
 
-  /* Ink-tinted elevation, tuned to the paper ground. */
-  --shadow-2xs: 0 1px 2px color-mix(in srgb, #2d2b2b 8%, transparent);
-  --shadow-xs: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
-  --shadow-xl: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+  /* Sombras suaves y difusas, teñidas de tinta: separan la tarjeta del fondo
+     sin marcar un borde. */
+  --shadow-2xs: 0 1px 1px color-mix(in srgb, #201e1d 4%, transparent);
+  --shadow-xs: 0 1px 2px color-mix(in srgb, #201e1d 6%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #201e1d 4%, transparent), 0 6px 20px -10px color-mix(in srgb, #201e1d 14%, transparent);
+  --shadow-md: 0 2px 4px color-mix(in srgb, #201e1d 5%, transparent), 0 12px 28px -12px color-mix(in srgb, #201e1d 20%, transparent);
+  --shadow-lg: 0 4px 8px color-mix(in srgb, #201e1d 6%, transparent), 0 24px 48px -16px color-mix(in srgb, #201e1d 26%, transparent);
+  --shadow-xl: 0 4px 8px color-mix(in srgb, #201e1d 6%, transparent), 0 24px 48px -16px color-mix(in srgb, #201e1d 26%, transparent);
 }
 
 @theme inline {
@@ -74,25 +81,25 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  /* Near-square corners: the system's radius is 2px, not 10px. */
-  --radius-sm: 1px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 4px;
-  --radius-2xl: 4px;
-  --radius-3xl: 6px;
-  --radius-4xl: 8px;
+  /* Esquinas redondeadas: controles 10px, tarjetas 18px. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 24px;
+  --radius-4xl: 28px;
 }
 
 :root {
-  --radius: 2px;
+  --radius: 10px;
 
-  /* Page is paper; cards and panels are newsprint gray — never white. */
+  /* La página es papel gris; las tarjetas y los menús, blancos encima. */
   --background: #f3f2f2;
   --foreground: #201e1d;
-  --card: #eae9e9;
+  --card: #ffffff;
   --card-foreground: #201e1d;
-  --popover: #eae9e9;
+  --popover: #ffffff;
   --popover-foreground: #201e1d;
 
   /* Primary is solid ink — the app has no colored fills. */
@@ -173,7 +180,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-size: 15px;
     line-height: 1.55;
     text-wrap: pretty;
@@ -182,11 +189,10 @@
     @apply font-sans;
   }
 
-  /* Serif display scale, flush left, tight leading — as in the app. */
   h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
-    line-height: 1.12;
-    letter-spacing: -0.015em;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
   }
   h1 { font-size: 42px; }
   h2 { font-size: 32px; }
@@ -237,64 +243,79 @@
 }
 
 /* ------------------------------------------------------- sistema de listas */
-/* Las pantallas de datos (facturas, clientes, productos, entradas) son un
-   MAYOR, no un tablero: superficies de papel blanco con filete, renglones
-   separados por reglas y no tarjetas flotando con hueco entre ellas.
-   Los radios salen de la escala declarada arriba — 2px en controles, 4px en
-   superficies —, no de valores sueltos tipo rounded-[22px].
+/* Superficies blancas redondeadas con sombra suave sobre el gris de fondo.
+   Dentro de una tarjeta, los renglones se separan con una regla fina; en las
+   listas principales (.lista-tarjetas) cada renglón es su propia tarjeta.
 
    OJO con el nombre: `.hoja` ya existe más abajo y es la hoja IMPRIMIBLE de la
    factura, con sus overrides de @media print. Reusarla aquí le habría aplicado
    estilos de impresión a todas las tablas de la app. */
 @layer components {
-  /* Superficie de registro. */
+  /* Superficie: tarjeta blanca. El borde casi invisible solo evita que la
+     sombra "flote" sobre fondos claros. */
   .registro {
-    @apply rounded-2xl border border-neutral-300 bg-white;
+    @apply rounded-2xl border border-ink/[0.05] bg-white shadow-sm;
   }
 
-  /* Banda de encabezado de una tabla dentro de .registro */
+  /* Encabezado de columnas dentro de una tarjeta. */
   .registro-cab {
-    @apply border-b border-neutral-300 bg-paper px-4 py-2;
+    @apply border-b border-neutral-200 px-4 py-2.5;
   }
 
   /* Renglón. La regla se declara ENTRE hermanos, así que el primero no la
-     lleva (el encabezado ya cierra con la suya) y el marcado se olvida del
-     índice: nada de `i > 0 && "border-t"` repetido en cada página. */
+     lleva y el marcado se olvida del índice. */
   .registro-fila + .registro-fila {
     @apply border-t border-neutral-200;
   }
 
-  /* Rótulo en versalitas: encabezados de columna y etiquetas de campo. */
-  .rotulo {
-    @apply text-[10px] tracking-[0.1em] text-neutral-600 uppercase;
+  /* Listas principales (facturas, clientes, productos, entradas): cada
+     renglón es una tarjeta suelta y los encabezados van sueltos encima. */
+  .lista-tarjetas {
+    @apply flex flex-col gap-2;
+  }
+  .lista-tarjetas > .registro-cab {
+    @apply border-0 bg-transparent pb-0.5;
+  }
+  .lista-tarjetas > .registro-fila {
+    @apply rounded-2xl border border-ink/[0.05] bg-white shadow-sm transition-shadow;
+  }
+  .lista-tarjetas > .registro-fila:hover {
+    @apply shadow-md;
+  }
+  .lista-tarjetas > .registro-fila + .registro-fila {
+    @apply border-t-ink/[0.05];
   }
 
-  /* Campo de captura: rectángulo que alinea en columna. */
+  /* Rótulo: encabezados de columna y etiquetas de campo. */
+  .rotulo {
+    @apply text-[12px] font-medium text-neutral-600;
+  }
+
+  /* Campo de captura. */
   .casilla {
-    @apply rounded-md border border-neutral-300 bg-white px-3 py-2;
+    @apply rounded-xl border border-neutral-200 bg-white px-3 py-2;
   }
   .casilla:focus-within {
     @apply border-ink;
   }
 
-  /* Panel de formulario: el chrome va tintado y los campos blancos encima —
-     el papel donde se escribe es lo blanco. */
+  /* Panel de formulario: gris claro, con los campos blancos encima. */
   .panel {
-    @apply rounded-2xl border border-neutral-300 bg-paper p-4 md:p-5;
+    @apply rounded-2xl border border-ink/[0.05] bg-white p-4 shadow-sm md:p-5;
   }
 
   /* Controles */
   .boton {
-    @apply flex h-9 items-center gap-2 rounded-md px-4 text-sm;
+    @apply flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors;
   }
   .boton-ink {
-    @apply bg-ink text-paper disabled:opacity-40;
+    @apply bg-ink text-paper hover:bg-neutral-800 disabled:opacity-40 disabled:hover:bg-ink;
   }
   .boton-claro {
-    @apply border border-neutral-300 bg-white disabled:opacity-40;
+    @apply border border-neutral-200 bg-white shadow-xs hover:bg-neutral-100 disabled:opacity-40 disabled:hover:bg-white;
   }
   .entrada-texto {
-    @apply h-9 rounded-md border border-neutral-300 bg-white px-3 text-sm outline-none;
+    @apply h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm shadow-xs outline-none;
   }
   .entrada-texto:focus-visible {
     @apply border-ink;
@@ -302,7 +323,7 @@
 
   /* Botón fantasma de acción en un renglón (editar, borrar). */
   .accion {
-    @apply grid size-7 place-items-center rounded-md text-neutral-600;
+    @apply grid size-8 place-items-center rounded-lg text-neutral-600 transition-colors;
   }
   .accion:hover {
     @apply bg-newsprint text-ink;
@@ -378,10 +399,9 @@
 }
 
 /* ------------------------------------------------- portada pública ------ */
-/* La portada es la única pantalla en sans: es la cara de venta, no el
-   documento de trabajo, y el resto del sistema sigue en serif. */
+/* La portada usa la misma Geist que el resto; aquí solo va lo suyo. */
 .portada {
-  font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 /* En capa base para que las clases de color de cada enlace sigan ganando: la
    regla global de `a` pinta tinta, que sobre fondo oscuro no se ve. */

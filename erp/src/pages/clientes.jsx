@@ -316,10 +316,10 @@ export default function Clientes() {
       )}
 
       {filas.length > 0 && (
-        // Tabla y no rejilla de tarjetas: aquí se viene a barrer la columna de
-        // saldos de arriba abajo, y en tarjetas cada saldo queda a distinta
-        // altura, así que no se pueden comparar de un vistazo.
-        <div className="registro overflow-hidden">
+        // Cada renglón es una tarjeta, pero en UNA columna y con la misma
+        // rejilla: los saldos siguen alineados uno debajo del otro, que es lo
+        // que se viene a barrer de arriba abajo.
+        <div className="lista-tarjetas">
           <div
             className={cn(
               "registro-cab rotulo hidden items-center gap-3 md:grid",

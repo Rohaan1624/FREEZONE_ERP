@@ -322,14 +322,17 @@ export default function Resumen() {
           <div className="grid grid-cols-2 gap-3">
             {indicadores.map(({ icon: Icon, k, v, sub, aviso }) => (
               <div key={k} className={cn("flex flex-col gap-0.5 p-4", hoja)}>
-                {/* El icono va junto al rótulo, no como bloque encima: apilado
-                    hacía que cada indicador ocupara el doble y pareciera tarjeta
-                    de marketing en vez de una cifra de reporte. */}
-                <div className="flex items-center gap-2">
-                  <Icon className="size-4 shrink-0 text-neutral-500" />
+                {/* El icono va en su propio cuadro, pero EN LÍNEA con el
+                    rótulo y no como bloque encima: apilado, cada indicador
+                    ocupaba el doble y parecía tarjeta de marketing en vez de una
+                    cifra de reporte. */}
+                <div className="mb-1.5 flex items-center gap-2.5">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-newsprint">
+                    <Icon className="size-4 text-ink" />
+                  </span>
                   <span className={rotulo}>{k}</span>
                 </div>
-                <div className="text-[28px] leading-tight font-semibold tracking-[-0.02em] tabular-nums">
+                <div className="text-[23px] leading-tight font-semibold tracking-[-0.02em] tabular-nums md:text-[28px]">
                   {v}
                 </div>
                 <div className="text-xs text-neutral-700">{sub}</div>

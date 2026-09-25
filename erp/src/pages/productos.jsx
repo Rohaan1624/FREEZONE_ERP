@@ -347,7 +347,7 @@ export default function Productos() {
       )}
 
       {filas.length > 0 && (
-        <div className="registro overflow-hidden">
+        <div className="lista-tarjetas">
           <div
             className={cn(
               "registro-cab rotulo hidden items-center gap-3 md:grid",

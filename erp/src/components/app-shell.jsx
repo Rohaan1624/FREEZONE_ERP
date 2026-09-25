@@ -50,103 +50,143 @@ export function AppShell() {
     .map((w) => w[0].toUpperCase())
     .join("")
 
+  const logo = (clase) =>
+    empresa?.logo_url ? (
+      <img src={empresa.logo_url} alt="" className={cn("shrink-0 bg-white object-contain", clase)} />
+    ) : (
+      <div className={cn("grid shrink-0 place-items-center font-semibold", clase)}>{iniciales}</div>
+    )
+
   return (
     /* Alto fijo con el contenido desplazándose adentro, no la ventana entera.
-       El encabezado y el riel se quedan siempre a la vista —que es lo que uno
-       espera de un ERP— y, sobre todo, deja que una pantalla pida el alto
-       completo: sin esto el asistente no puede tener su caja de texto abajo,
-       porque la página crece con cada respuesta y el input se va al fondo.
+       El menú se queda siempre a la vista —que es lo que uno espera de un
+       ERP— y, sobre todo, deja que una pantalla pida el alto completo: sin
+       esto el asistente no puede tener su caja de texto abajo, porque la
+       página crece con cada respuesta y el input se va al fondo.
+
+       En escritorio: riel oscuro de iconos a la izquierda y la página en un
+       panel claro redondeado. En el teléfono: la página a lo ancho y el menú
+       abajo, al alcance del pulgar.
 
        Los `print:` no son cosmética: sin ellos una factura de tres páginas se
        imprimiría recortada al alto de la pantalla. */
-    <div className="flex h-svh flex-col overflow-hidden bg-paper px-4 pt-3 pb-0 text-ink md:px-6 md:pt-4 md:pb-8 print:block print:h-auto print:overflow-visible print:bg-white print:p-0">
-      <div className="mx-auto flex min-h-0 w-full max-w-[1460px] flex-1 flex-col gap-4 print:min-h-0 print:block">
-        <header className="flex items-center gap-3 md:gap-4 print:hidden">
-          <div className="flex min-w-0 items-center gap-3">
-            {empresa?.logo_url ? (
-              <img
-                src={empresa.logo_url}
-                alt=""
-                className="size-9 shrink-0 rounded-2xl bg-newsprint object-contain md:size-10"
-              />
-            ) : (
-              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-ink text-[15px] font-semibold text-paper md:size-10 md:text-[17px]">
-                {iniciales}
-              </div>
+    <div className="flex h-svh flex-col overflow-hidden bg-paper text-ink md:flex-row md:bg-ink md:p-2.5 print:block print:h-auto print:overflow-visible print:bg-white print:p-0">
+      {/* overflow-y-auto como último recurso: si ni compacto cabe (zoom muy
+          alto), el riel se desplaza en vez de esconder cerrar sesión. */}
+      <aside className="hidden w-[84px] shrink-0 flex-col items-center gap-1 overflow-y-auto py-3 [scrollbar-width:none] md:flex bajo:gap-0.5 bajo:py-2 muybajo:gap-0 muybajo:py-1 print:hidden">
+        <NavLink to="/resumen" title={nombre} className="mb-5 shrink-0 no-underline bajo:mb-2 muybajo:mb-1">
+          {logo("size-11 rounded-2xl bg-paper text-[15px] text-ink muybajo:size-9 muybajo:text-[13px]")}
+        </NavLink>
+
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            title={label}
+            className={({ isActive }) =>
+              cn(
+                "group relative flex w-[72px] shrink-0 flex-col items-center gap-1 rounded-xl py-2 text-[11px] no-underline transition-colors hover:no-underline bajo:py-1 muybajo:py-0.5",
+                isActive ? "text-paper" : "text-paper/55 hover:text-paper"
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {/* Marca de la sección activa, pegada al borde del riel. */}
+                {isActive && (
+                  <span className="absolute top-1/2 -left-1.5 h-6 w-[3px] -translate-y-1/2 rounded-full bg-paper" />
+                )}
+                <span
+                  className={cn(
+                    "grid size-10 place-items-center rounded-xl transition-colors muybajo:size-9",
+                    isActive ? "bg-paper/12" : "group-hover:bg-paper/6"
+                  )}
+                >
+                  <Icon className="size-[19px]" />
+                </span>
+                <span className="bajo:hidden">{label}</span>
+              </>
             )}
-            <div className="truncate text-[17px] leading-tight font-semibold tracking-[-0.02em] md:text-[19px]">
-              {nombre}
-            </div>
+          </NavLink>
+        ))}
+
+        <div className="mt-auto flex shrink-0 flex-col items-center gap-1 pt-2 muybajo:gap-0 muybajo:pt-1">
+          <NavLink
+            to="/empresa"
+            title="Datos de la empresa"
+            className={({ isActive }) =>
+              cn(
+                "grid size-10 place-items-center rounded-xl transition-colors muybajo:size-9",
+                isActive ? "bg-paper/12 text-paper" : "text-paper/55 hover:bg-paper/6 hover:text-paper"
+              )
+            }
+          >
+            <Settings className="size-[19px]" />
+          </NavLink>
+          <button
+            onClick={salir}
+            title="Cerrar sesión"
+            className="grid size-10 place-items-center rounded-xl text-paper/55 transition-colors hover:bg-paper/6 hover:text-paper muybajo:size-9"
+          >
+            <LogOut className="size-[18px]" />
+          </button>
+        </div>
+      </aside>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 bg-paper px-4 pt-3 md:rounded-[26px] md:px-8 md:pt-6 print:block print:rounded-none print:p-0">
+        <header className="mx-auto flex w-full max-w-[1400px] items-center gap-3 print:hidden">
+          {/* En el teléfono no hay riel: el logo y el nombre van aquí. */}
+          <div className="md:hidden">{logo("size-9 rounded-xl bg-ink text-[14px] text-paper")}</div>
+          <div className="min-w-0 truncate text-[17px] font-semibold tracking-[-0.02em] md:text-[22px]">
+            {nombre}
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
+            {/* En escritorio empresa y salir viven en el riel; aquí solo el
+                correo, para saber con qué cuenta se está. */}
+            <span className="hidden max-w-[28ch] truncate rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[13px] text-neutral-700 shadow-xs md:inline">
+              {usuario?.email}
+            </span>
             <NavLink
               to="/empresa"
-              className="grid size-8 place-items-center rounded-md text-neutral-600 hover:bg-newsprint hover:text-ink"
+              className="grid size-9 place-items-center rounded-lg text-neutral-600 hover:bg-newsprint hover:text-ink md:hidden"
               title="Datos de la empresa"
             >
               <Settings className="size-[18px]" />
             </NavLink>
-            {/* En el teléfono el correo no cabe y no hace falta: ya se sabe quién es. */}
-            <span className="hidden max-w-[24ch] truncate text-[13px] text-neutral-600 md:inline">
-              {usuario?.email}
-            </span>
             <button
               onClick={salir}
               title="Cerrar sesión"
-              className="grid size-8 place-items-center rounded-md text-neutral-600 hover:bg-newsprint hover:text-ink"
+              className="grid size-9 place-items-center rounded-lg text-neutral-600 hover:bg-newsprint hover:text-ink md:hidden"
             >
               <LogOut className="size-[17px]" />
             </button>
           </div>
         </header>
 
-        {/* Riel con filete, no píldoras con iconos en círculos: ese gesto es el
-            que hace que un ERP parezca una plantilla, se come una fila entera
-            de alto y deja de escalar pasadas seis secciones. */}
-        <nav className="hidden flex-wrap gap-7 border-b border-neutral-300 md:flex print:hidden">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  "-mb-px flex items-center gap-2 border-b-2 pb-2.5 text-sm transition-colors",
-                  isActive
-                    ? "border-ink font-semibold text-ink"
-                    : "border-transparent text-neutral-600 hover:text-ink"
-                )
-              }
-            >
-              <Icon className="size-[18px]" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-
         {/* La región que se desplaza. `min-h-0` es obligatorio: sin él un hijo
             flex se niega a encogerse por debajo de su contenido y el scroll se
             va a la ventana, que es justo lo que estamos evitando. */}
         <div
           data-scroll
-          className="min-h-0 flex-1 overflow-y-auto pb-6 md:pb-0 print:h-auto print:overflow-visible print:pb-0"
+          className="-mx-4 min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:-mx-8 md:px-8 md:pb-8 print:m-0 print:h-auto print:overflow-visible print:p-0"
         >
-          <Outlet context={{ empresa, recargarEmpresa: setEmpresa }} />
+          <div className="mx-auto w-full max-w-[1400px]">
+            <Outlet context={{ empresa, recargarEmpresa: setEmpresa }} />
+          </div>
         </div>
       </div>
 
-      {/* En el teléfono el menú va abajo, al alcance del pulgar, y no se
-          envuelve en dos renglones como el riel de arriba. Queda FUERA de la
-          región que desplaza, así que siempre está a la vista. */}
-      <nav className="-mx-4 flex shrink-0 border-t border-neutral-300 bg-paper pb-[env(safe-area-inset-bottom,0px)] md:hidden print:hidden">
+      {/* En el teléfono el menú va abajo. Queda FUERA de la región que
+          desplaza, así que siempre está a la vista. */}
+      <nav className="flex shrink-0 border-t border-neutral-200 bg-white/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur md:hidden print:hidden">
         {NAV.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
               cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-1 pt-2 pb-1.5 text-[11px] no-underline",
+                "flex min-w-0 flex-1 flex-col items-center gap-1 pt-2 pb-1.5 text-[11px] no-underline hover:no-underline",
                 isActive ? "font-semibold text-ink" : "text-neutral-600"
               )
             }

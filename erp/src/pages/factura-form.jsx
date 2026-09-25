@@ -76,11 +76,29 @@ const DOC_VACIO = Object.fromEntries(CAMPOS_DOC.map(([k]) => [k, ""]))
 // columns line up. Un producto ya no lleva columna de selector: se hace clic
 // en el campo que se quiere escribir. Misceláneos llevan los dos campos
 // sueltos porque no convierten; los cargos ninguno, porque son dinero.
+//
+// Con prefijo md: en el teléfono cada renglón es una TARJETA sobre una rejilla
+// de seis columnas (ver CELDA): concepto y quitar arriba, las cantidades en
+// medio con su rótulo, precio e importe abajo. Mismos campos, mismo orden;
+// solo cambia dónde cae cada uno.
 const GRID = {
-  product: "grid-cols-[minmax(0,1.5fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
-  miscellaneous: "grid-cols-[minmax(0,1.7fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
-  charge: "grid-cols-[minmax(0,2fr)_86px_92px_minmax(0,0.8fr)_34px]",
+  product: "md:grid-cols-[minmax(0,1.5fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
+  miscellaneous: "md:grid-cols-[minmax(0,1.7fr)_86px_86px_70px_92px_minmax(0,0.8fr)_34px]",
+  charge: "md:grid-cols-[minmax(0,2fr)_86px_92px_minmax(0,0.8fr)_34px]",
 }
+// Lugar de cada celda en la tarjeta del teléfono. Desde md se vuelve una
+// celda normal de la fila (md:col-span-1 y posición automática).
+const CELDA = {
+  concepto: "col-span-5 md:col-span-1",
+  quitar: "col-start-6 row-start-1 md:col-start-auto md:row-start-auto",
+  bultos: "col-span-2 md:col-span-1",
+  cantidad: { conBultos: "col-span-2 md:col-span-1", cargo: "col-span-2 md:col-span-1" },
+  unidad: "col-span-2 md:col-span-1",
+  precio: { conBultos: "col-span-3 md:col-span-1", cargo: "col-span-4 md:col-span-1" },
+  importe: { conBultos: "col-span-3 self-end md:col-span-1 md:self-auto", cargo: "col-span-6 md:col-span-1" },
+}
+// Rótulo sobre cada campo, solo en el teléfono: allí no hay fila de encabezado.
+const ROTULO_MOVIL = "rotulo mb-1 block md:hidden"
 const TH = "rotulo"
 const SUB = "block text-[9px] normal-case tracking-normal"
 
@@ -352,7 +370,7 @@ export default function FacturaForm() {
   }
 
   const campo =
-    "entrada-texto h-8 px-2.5"
+    "entrada-texto h-8 w-full px-2.5"
 
   return (
     <div className="flex flex-col gap-3">
@@ -647,7 +665,7 @@ export default function FacturaForm() {
                 and a pointer cursor. Enter adds the first hit. */}
             {sugerencias.length > 0 && (
               <div className="mb-3 casilla/60 p-2">
-                <div className="flex items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700">
+                <div className="hidden items-center gap-2 px-1.5 pb-2 text-[11px] text-neutral-700 md:flex">
                   <CornerDownLeft className="size-3.5" />
                   Haz clic en un SKU para agregarlo — o pulsa Enter para el primero
                 </div>
@@ -656,7 +674,7 @@ export default function FacturaForm() {
                     <button
                       key={p.id}
                       onClick={() => agregar(p)}
-                      className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 casilla p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1 focus-visible:ring-2 focus-visible:outline-none"
+                      className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] casilla p-2.5 text-left ring-ink transition hover:shadow-md hover:ring-1 focus-visible:ring-2 focus-visible:outline-none"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm">{p.description || p.sku}</div>
@@ -664,18 +682,26 @@ export default function FacturaForm() {
                           {p.sku} · {p.qty_unit > 1 ? `${p.qty_unit} por bulto` : "suelto"} ·{" "}
                           {p.unit ?? "PZA"}
                         </div>
+                        {/* En el teléfono existencia y precio bajan aquí: como
+                            columnas aparte no cabían junto al nombre. */}
+                        <div className="text-[12px] text-neutral-700 tabular-nums md:hidden">
+                          existencia {n0(p.stock)} ·{" "}
+                          <span className="font-semibold text-ink">
+                            {p.sale_price == null ? "sin precio" : usd(p.sale_price)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-xs text-neutral-700 tabular-nums">
+                      <div className="hidden text-xs text-neutral-700 tabular-nums md:block">
                         existencia {n0(p.stock)}
                       </div>
-                      <div className="text-sm tabular-nums">
+                      <div className="hidden text-sm tabular-nums md:block">
                         {p.sale_price == null ? "sin precio" : usd(p.sale_price)}
                       </div>
-                      <span className="flex items-center gap-1.5 rounded-md bg-newsprint px-3 py-1.5 text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper">
+                      <span className="flex size-9 items-center justify-center gap-1.5 rounded-full bg-newsprint text-[12px] font-semibold transition-colors group-hover:bg-ink group-hover:text-paper md:size-auto md:rounded-md md:px-3 md:py-1.5">
                         <PlusCircle className="size-4" />
-                        Agregar
+                        <span className="hidden md:inline">Agregar</span>
                         {i === 0 && (
-                          <kbd className="ml-0.5 rounded bg-ink/10 px-1 py-px font-sans text-[10px] group-hover:bg-paper/20">
+                          <kbd className="ml-0.5 hidden rounded bg-ink/10 md:inline px-1 py-px font-sans text-[10px] group-hover:bg-paper/20">
                             ⏎
                           </kbd>
                         )}
@@ -709,9 +735,9 @@ export default function FacturaForm() {
                 El bloque de bultos es condicional, así que en la pestaña de
                 cargos —que no lleva bultos— Cantidad sigue saliendo primero
                 sin ningún caso especial. */}
-            <div className="tabla-desliza" style={{ "--ancho-tabla": "640px" }}>
+            <div>
               {visibles.length > 0 && (
-                <div className={cn("grid items-end gap-2 px-3 pb-2", GRID[tab], TH)}>
+                <div className={cn("hidden items-end gap-2 px-3 pb-2 md:grid", GRID[tab], TH)}>
                   <div>{tab === "product" ? "Producto" : "Concepto"}</div>
                   {llevaBultos(tab) && (
                     <div className="text-right">
@@ -730,10 +756,16 @@ export default function FacturaForm() {
 
               <div className="flex flex-col gap-2">
                 {visibles.map((l) => (
-                  <div key={l.id} className={cn("grid items-center gap-2 casilla p-3", GRID[l.type])}>
+                  <div
+                    key={l.id}
+                    className={cn(
+                      "grid grid-cols-6 items-center gap-x-2 gap-y-3 casilla p-3 md:gap-y-2",
+                      GRID[l.type]
+                    )}
+                  >
                     {/* concepto */}
                     {l.type === "product" ? (
-                      <div className="min-w-0">
+                      <div className={cn("min-w-0", CELDA.concepto)}>
                         <div className="truncate text-sm">{l.nombre}</div>
                         <div className="text-[11px] text-neutral-700 tabular-nums">
                           {l.sku} ·{" "}
@@ -747,7 +779,7 @@ export default function FacturaForm() {
                         value={l.description}
                         onChange={(e) => set(l.id, { description: e.target.value })}
                         placeholder={l.type === "charge" ? "Concepto del cargo" : "Concepto"}
-                        className={campo}
+                        className={cn(campo, CELDA.concepto)}
                       />
                     )}
 
@@ -763,73 +795,91 @@ export default function FacturaForm() {
                         un cargo —que no lleva bultos— sigue empezando por la
                         cantidad sin necesidad de un caso aparte. */}
                     {llevaBultos(l.type) && (
+                      <label className={CELDA.bultos}>
+                        <span className={ROTULO_MOVIL}>Bultos</span>
+                        <input
+                          value={l.bultos ?? ""}
+                          onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
+                          onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "bultos" })}
+                          readOnly={convierteBultos(l.type) && l.modo === "qty"}
+                          inputMode="decimal"
+                          placeholder={convierteBultos(l.type) ? "" : "—"}
+                          title={
+                            convierteBultos(l.type) && l.modo === "qty"
+                              ? "Sale de las unidades. Haz clic para escribir bultos."
+                              : undefined
+                          }
+                          className={cn(
+                            campo,
+                            "text-right tabular-nums",
+                            convierteBultos(l.type) &&
+                              l.modo === "qty" &&
+                              "cursor-pointer border-dashed text-neutral-700"
+                          )}
+                        />
+                      </label>
+                    )}
+
+                    {/* cantidad — las unidades reales, que son las que mueven stock */}
+                    <label className={CELDA.cantidad[llevaBultos(l.type) ? "conBultos" : "cargo"]}>
+                      <span className={ROTULO_MOVIL}>Cantidad</span>
                       <input
-                        value={l.bultos ?? ""}
-                        onChange={(e) => set(l.id, { bultos: e.target.value, modo: "bultos" })}
-                        onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "bultos" })}
-                        readOnly={convierteBultos(l.type) && l.modo === "qty"}
-                        inputMode="decimal"
-                        placeholder={convierteBultos(l.type) ? "" : "—"}
+                        value={l.qty}
+                        onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
+                        onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
+                        readOnly={convierteBultos(l.type) && l.modo === "bultos"}
+                        inputMode="numeric"
                         title={
-                          convierteBultos(l.type) && l.modo === "qty"
-                            ? "Sale de las unidades. Haz clic para escribir bultos."
+                          convierteBultos(l.type) && l.modo === "bultos"
+                            ? "Sale de los bultos. Haz clic para escribir unidades."
                             : undefined
                         }
                         className={cn(
                           campo,
                           "text-right tabular-nums",
                           convierteBultos(l.type) &&
-                            l.modo === "qty" &&
+                            l.modo === "bultos" &&
                             "cursor-pointer border-dashed text-neutral-700"
                         )}
                       />
-                    )}
-
-                    {/* cantidad — las unidades reales, que son las que mueven stock */}
-                    <input
-                      value={l.qty}
-                      onChange={(e) => set(l.id, { qty: e.target.value, modo: "qty" })}
-                      onFocus={() => convierteBultos(l.type) && set(l.id, { modo: "qty" })}
-                      readOnly={convierteBultos(l.type) && l.modo === "bultos"}
-                      inputMode="numeric"
-                      title={
-                        convierteBultos(l.type) && l.modo === "bultos"
-                          ? "Sale de los bultos. Haz clic para escribir unidades."
-                          : undefined
-                      }
-                      className={cn(
-                        campo,
-                        "text-right tabular-nums",
-                        convierteBultos(l.type) &&
-                          l.modo === "bultos" &&
-                          "cursor-pointer border-dashed text-neutral-700"
-                      )}
-                    />
+                    </label>
 
                     {llevaBultos(l.type) && (
-                      <input
-                        value={l.unit ?? ""}
-                        onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
-                        list="unidades-erp"
-                        placeholder="PZA"
-                        className={cn(campo, "px-2 text-center")}
-                      />
+                      <label className={CELDA.unidad}>
+                        <span className={ROTULO_MOVIL}>Unidad</span>
+                        <input
+                          value={l.unit ?? ""}
+                          onChange={(e) => set(l.id, { unit: e.target.value.toUpperCase() })}
+                          list="unidades-erp"
+                          placeholder="PZA"
+                          className={cn(campo, "px-2 text-center")}
+                        />
+                      </label>
                     )}
 
-                    <input
-                      value={l.unit_price}
-                      onChange={(e) => set(l.id, { unit_price: e.target.value })}
-                      inputMode="decimal"
-                      placeholder={l.type === "charge" ? "Monto" : "Precio"}
-                      className={cn(campo, "text-right tabular-nums")}
-                    />
-                    <div className="text-right text-[15px] font-semibold tabular-nums">
+                    <label className={CELDA.precio[llevaBultos(l.type) ? "conBultos" : "cargo"]}>
+                      <span className={ROTULO_MOVIL}>{l.type === "charge" ? "Monto" : "Precio"}</span>
+                      <input
+                        value={l.unit_price}
+                        onChange={(e) => set(l.id, { unit_price: e.target.value })}
+                        inputMode="decimal"
+                        placeholder={l.type === "charge" ? "Monto" : "Precio"}
+                        className={cn(campo, "text-right tabular-nums")}
+                      />
+                    </label>
+                    <div
+                      className={cn(
+                        "text-right text-[15px] font-semibold tabular-nums",
+                        CELDA.importe[llevaBultos(l.type) ? "conBultos" : "cargo"]
+                      )}
+                    >
+                      <span className={ROTULO_MOVIL}>Importe</span>
                       {usd(importe(l))}
                     </div>
                     <button
                       onClick={() => quitar(l.id)}
                       title="Quitar renglón"
-                      className="accion justify-self-end"
+                      className={cn("accion justify-self-end", CELDA.quitar)}
                     >
                       <Trash2 className="size-4" />
                     </button>

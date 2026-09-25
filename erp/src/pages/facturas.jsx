@@ -229,9 +229,9 @@ export default function Facturas() {
       )}
 
       {filas.length > 0 && (
-        // Una sola hoja blanca que se ajusta a su contenido. Antes el contenedor
-        // gris se estiraba y dejaba 380px de vacío debajo del último renglón.
-        <div className="registro overflow-hidden">
+        // Cada renglón es su propia tarjeta (.lista-tarjetas), con la misma
+        // rejilla de columnas: las cifras siguen alineadas de arriba abajo.
+        <div className="lista-tarjetas">
           <div
             className={cn(
               "registro-cab rotulo hidden items-center gap-3 md:grid",
