@@ -9,6 +9,7 @@ import { usd } from "@/lib/format"
 import { useTotales } from "@/lib/totales"
 import { Paginacion } from "@/components/paginacion"
 import { useDebounce, rango, filtroTexto } from "@/lib/lista"
+import { useALaVista } from "@/lib/a-la-vista"
 
 const TIPOS = ["company", "individual", "government"]
 const ETIQUETA_TIPO = { company: "Empresa", individual: "Persona", government: "Gobierno" }
@@ -30,6 +31,9 @@ export default function Clientes() {
   const [error, setError] = React.useState("")
   const [busca, setBusca] = React.useState("")
   const [form, setForm] = React.useState(null) // null = closed, {} = new, {id} = edit
+  // Al abrir el panel (o cambiar a otro registro) se sube a él: vive arriba
+  // de la lista y, editando un renglón de abajo, ni se veía abrir.
+  const panelRef = useALaVista(form ? (form.id ?? "nuevo") : null)
   const [guardando, setGuardando] = React.useState(false)
   const [aBorrar, setABorrar] = React.useState(null) // the client awaiting confirmation
   const [borrando, setBorrando] = React.useState(false)
@@ -184,9 +188,9 @@ export default function Clientes() {
       )}
 
       {form && (
-        <section className="panel">
+        <section ref={panelRef} className="panel scroll-mt-4">
           <div className="mb-4 flex items-center gap-3">
-            <h4 className="m-0 font-semibold">{form.id ? "Editar cliente" : "Nuevo cliente"}</h4>
+            <h4 className="m-0 font-semibold">{form.id ? `Editar cliente · ${form.name}` : "Nuevo cliente"}</h4>
             <div className="ml-auto flex gap-2">
               <button
                 onClick={() => {
@@ -347,7 +351,10 @@ export default function Clientes() {
               key={c.id}
               className={cn(
                 "registro-fila group relative grid cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100 focus-within:bg-neutral-100",
-                COLS
+                COLS,
+                // El renglón que se está editando queda marcado: al volver a
+                // la lista se ve cuál era.
+                form?.id === c.id && "ring-2 ring-ink"
               )}
             >
               <Link

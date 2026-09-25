@@ -8,6 +8,7 @@ import { Confirmar } from "@/components/confirmar"
 import { useTotales } from "@/lib/totales"
 import { Paginacion } from "@/components/paginacion"
 import { useDebounce, rango, filtroTexto } from "@/lib/lista"
+import { useALaVista } from "@/lib/a-la-vista"
 import {
   usd,
   n0,
@@ -34,6 +35,9 @@ export default function Productos() {
   const [error, setError] = React.useState("")
   const [busca, setBusca] = React.useState("")
   const [form, setForm] = React.useState(null)
+  // Al abrir el panel (o cambiar a otro registro) se sube a él: vive arriba
+  // de la lista y, editando un renglón de abajo, ni se veía abrir.
+  const panelRef = useALaVista(form ? (form.id ?? "nuevo") : null)
   const [guardando, setGuardando] = React.useState(false)
   const [aBorrar, setABorrar] = React.useState(null)
   const [borrando, setBorrando] = React.useState(false)
@@ -188,9 +192,9 @@ export default function Productos() {
       )}
 
       {form && (
-        <section className="panel">
+        <section ref={panelRef} className="panel scroll-mt-4">
           <div className="mb-4 flex items-center gap-3">
-            <h4 className="m-0 font-semibold">{form.id ? "Editar SKU" : "Nuevo SKU"}</h4>
+            <h4 className="m-0 font-semibold">{form.id ? `Editar SKU · ${form.sku}` : "Nuevo SKU"}</h4>
             {form.id && (
               <span className="rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs tabular-nums">
                 existencia {n0(form.stock)} · no editable
@@ -371,7 +375,10 @@ export default function Productos() {
               key={p.id}
               className={cn(
                 "registro-fila group relative grid cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-neutral-100 focus-within:bg-neutral-100",
-                COLS
+                COLS,
+                // El renglón que se está editando queda marcado: al volver a
+                // la lista se ve cuál era.
+                form?.id === p.id && "ring-2 ring-ink"
               )}
             >
               <Link
