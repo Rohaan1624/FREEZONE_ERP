@@ -99,6 +99,7 @@ export default function Empresa() {
             </div>
           </div>
           <button
+            data-tour="empresa-guardar"
             onClick={guardar}
             disabled={!sucio || guardando}
             className="boton boton-ink ml-auto"
@@ -112,6 +113,7 @@ export default function Empresa() {
           {CAMPOS.map((c) => (
             <label
               key={c.k}
+              data-tour={`empresa-${c.k}`}
               className={`block casilla px-4 py-2.5 ${c.ancho ? "col-span-full" : ""}`}
             >
               <span className="rotulo">
@@ -129,7 +131,7 @@ export default function Empresa() {
           ))}
         </div>
 
-        <label className="mt-2.5 block casilla px-4 py-2.5">
+        <label data-tour="empresa-direccion" className="mt-2.5 block casilla px-4 py-2.5">
           <span className="rotulo">Dirección</span>
           <textarea
             value={form.address ?? ""}
@@ -151,7 +153,7 @@ export default function Empresa() {
         )}
       </section>
 
-      <section className="registro p-4 md:p-6">
+      <section data-tour="empresa-importar" className="registro p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div>
             <h4 className="m-0 font-semibold">Importar del sistema anterior</h4>

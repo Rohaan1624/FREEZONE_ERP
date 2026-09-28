@@ -1,12 +1,13 @@
 import * as React from "react"
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom"
-import { ChartLine, Receipt, Users, Package, Truck, Sparkles, LogOut, Settings } from "lucide-react"
+import { ChartLine, Receipt, Users, Package, Truck, Sparkles, LogOut, Settings, CircleHelp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { ASISTENTE_ACTIVO } from "@/lib/banderas"
 import { NombreEmpresa, NOMBRE_GENERICO } from "@/components/nombre-empresa"
+import { Recorrido } from "@/components/recorrido"
 
 // El asistente solo aparece si su bandera está encendida. Enseñar la pestaña
 // con la función apagada llevaría a una pantalla que redirige sola, que se lee
@@ -23,7 +24,34 @@ const NAV = [
 export function AppShell() {
   const { session, cargando, usuario, salir } = useAuth()
   const [empresa, setEmpresa] = React.useState(null)
+  const [recorrido, setRecorrido] = React.useState(false)
   const location = useLocation()
+
+  // El recorrido se ofrece una vez por persona. Se recuerda en este navegador
+  // (en otro equipo se vuelve a ofrecer una vez, que no estorba) y se puede
+  // repetir con el botón de ayuda del menú.
+  const claveRecorrido = usuario ? `erp-recorrido-visto:${usuario.id}` : null
+  React.useEffect(() => {
+    // Espera a que la empresa tenga nombre: si no, se encimaría con el aviso
+    // que lo pide.
+    if (!claveRecorrido || !empresa || empresa.name === NOMBRE_GENERICO) return
+    let visto = true
+    try {
+      visto = localStorage.getItem(claveRecorrido) === "1"
+    } catch {
+      // almacenamiento bloqueado: mejor no ofrecerlo que ofrecerlo cada vez
+    }
+    if (!visto) setRecorrido(true)
+  }, [claveRecorrido, empresa])
+
+  const terminarRecorrido = React.useCallback(() => {
+    setRecorrido(false)
+    try {
+      if (claveRecorrido) localStorage.setItem(claveRecorrido, "1")
+    } catch {
+      // sin almacenamiento: se ofrecerá de nuevo la próxima vez
+    }
+  }, [claveRecorrido])
 
   React.useEffect(() => {
     if (!session) return
@@ -80,6 +108,7 @@ export function AppShell() {
             key={to}
             to={to}
             title={label}
+            data-tour={`nav-${to}`}
             className={({ isActive }) =>
               cn(
                 "group relative flex w-[72px] shrink-0 flex-col items-center gap-1 rounded-xl py-2 text-[11px] no-underline transition-colors hover:no-underline bajo:py-1 muybajo:py-0.5",
@@ -108,9 +137,18 @@ export function AppShell() {
         ))}
 
         <div className="mt-auto flex shrink-0 flex-col items-center gap-1 pt-2 muybajo:gap-0 muybajo:pt-1">
+          <button
+            onClick={() => setRecorrido(true)}
+            title="Ver el recorrido"
+            data-tour="tour-repetir"
+            className="grid size-10 place-items-center rounded-xl text-paper/55 transition-colors hover:bg-paper/6 hover:text-paper muybajo:size-9"
+          >
+            <CircleHelp className="size-[19px]" />
+          </button>
           <NavLink
             to="/empresa"
             title="Datos de la empresa"
+            data-tour="nav-/empresa"
             className={({ isActive }) =>
               cn(
                 "grid size-10 place-items-center rounded-xl transition-colors muybajo:size-9",
@@ -144,10 +182,19 @@ export function AppShell() {
             <span className="hidden max-w-[28ch] truncate rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[13px] text-neutral-700 shadow-xs md:inline">
               {usuario?.email}
             </span>
+            <button
+              onClick={() => setRecorrido(true)}
+              title="Ver el recorrido"
+              data-tour="tour-repetir"
+              className="grid size-9 place-items-center rounded-lg text-neutral-600 hover:bg-newsprint hover:text-ink md:hidden"
+            >
+              <CircleHelp className="size-[18px]" />
+            </button>
             <NavLink
               to="/empresa"
               className="grid size-9 place-items-center rounded-lg text-neutral-600 hover:bg-newsprint hover:text-ink md:hidden"
               title="Datos de la empresa"
+              data-tour="nav-/empresa"
             >
               <Settings className="size-[18px]" />
             </NavLink>
@@ -179,6 +226,8 @@ export function AppShell() {
         <NombreEmpresa empresa={empresa} onGuardado={setEmpresa} />
       )}
 
+      {recorrido && <Recorrido onTerminar={terminarRecorrido} />}
+
       {/* En el teléfono el menú va abajo. Queda FUERA de la región que
           desplaza, así que siempre está a la vista. */}
       <nav className="flex shrink-0 border-t border-neutral-200 bg-white/90 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur md:hidden print:hidden">
@@ -186,6 +235,7 @@ export function AppShell() {
           <NavLink
             key={to}
             to={to}
+            data-tour={`nav-${to}`}
             className={({ isActive }) =>
               cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-1 pt-2 pb-1.5 text-[11px] no-underline hover:no-underline",

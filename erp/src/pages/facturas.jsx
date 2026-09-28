@@ -126,7 +126,7 @@ export default function Facturas() {
               al lado competían con las cifras del renglón, que es lo que de
               verdad se viene a leer. Cerrado ocupa un control y dice en qué
               filtro estás, que es lo único que hace falta saber de un vistazo. */}
-          <label className="relative flex-1 md:flex-none">
+          <label data-tour="facturas-filtro" className="relative flex-1 md:flex-none">
             <span className="sr-only">Filtrar por estado</span>
             <ListFilter className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <select
@@ -147,7 +147,7 @@ export default function Facturas() {
           </label>
           {/* En el teléfono la búsqueda va primero y a lo ancho: apretada junto
               al filtro no cabía ni el texto de ayuda. */}
-          <div className="relative order-first w-full md:order-none md:w-auto">
+          <div data-tour="facturas-buscar" className="relative order-first w-full md:order-none md:w-auto">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               type="search"
@@ -180,6 +180,7 @@ export default function Facturas() {
             )}
           </div>
           <Link
+            data-tour="facturas-nueva"
             to="/facturas/nueva"
             className="boton boton-ink"
           >

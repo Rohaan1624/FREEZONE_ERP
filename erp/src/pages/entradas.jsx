@@ -118,6 +118,7 @@ export default function Entradas() {
             />
           </div>
           <Link
+            data-tour="entradas-nueva"
             to="/entradas/nueva"
             className="boton boton-ink"
           >

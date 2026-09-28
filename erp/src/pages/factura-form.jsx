@@ -408,7 +408,7 @@ export default function FacturaForm() {
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
-          <div className="casilla px-4 py-2.5">
+          <div data-tour="factura-cliente" className="casilla px-4 py-2.5">
             <span className="rotulo">Cliente</span>
             <div className="flex items-center gap-2">
               <BuscarCliente
@@ -431,7 +431,7 @@ export default function FacturaForm() {
           {/* La fecha SOLO se elige al crear: create_invoice acepta p_date pero
               update_invoice no puede mover date_created. Al editar se enseña
               en gris para que se vea cuál es sin prometer que se puede cambiar. */}
-          <label className="block casilla px-4 py-2.5">
+          <label data-tour="factura-fecha" className="block casilla px-4 py-2.5">
             <span className="rotulo">Fecha de emisión</span>
             {editando ? (
               <span className="mt-0.5 block text-base tabular-nums text-neutral-700">
@@ -492,6 +492,7 @@ export default function FacturaForm() {
         </div>
 
         <button
+          data-tour="factura-descontar"
           onClick={() => setDescontar((v) => !v)}
           className={cn(
             "mt-2.5 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left",
@@ -529,7 +530,7 @@ export default function FacturaForm() {
       {/* Datos de embarque — colapsado por defecto: son opcionales y la mayoría
           de las facturas no los usan, pero cuando hacen falta salen impresos
           tanto en la factura como en el packing list. */}
-      <section className="registro p-4 md:p-6">
+      <section data-tour="factura-documento" className="registro p-4 md:p-6">
         <button
           onClick={() => setVerEmbarque((v) => !v)}
           className="flex w-full items-center gap-3 text-left"
@@ -574,7 +575,7 @@ export default function FacturaForm() {
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.56fr)]">
         <div className="flex flex-col gap-3">
-          <section className="registro p-4 md:p-6">
+          <section data-tour="factura-lineas" className="registro p-4 md:p-6">
             {/* Pestañas arriba y las acciones en su propio renglón, centradas.
                 Al buscar, la caja ocupa todo el ancho. */}
             <div className="mb-4 flex flex-col items-start gap-3">
@@ -906,7 +907,7 @@ export default function FacturaForm() {
           </section>
         </div>
 
-        <aside className="sticky top-4 flex flex-col gap-3 registro p-4 md:p-6 text-sm">
+        <aside data-tour="factura-resumen" className="sticky top-4 flex flex-col gap-3 registro p-4 md:p-6 text-sm">
           <h4 className="m-0 mb-1 font-semibold">Resumen</h4>
           {TABS.map(({ id, label }) => {
             const sub = subtotalTipo(lineas, id)

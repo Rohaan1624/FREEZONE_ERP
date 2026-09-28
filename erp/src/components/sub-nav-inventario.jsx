@@ -24,6 +24,7 @@ export function SubNavInventario() {
           key={to}
           to={to}
           end={end}
+          data-tour={`sub-${to}`}
           className={({ isActive }) =>
             cn(
               "flex items-center gap-2 px-4 py-1.5 text-[13px] transition-colors",

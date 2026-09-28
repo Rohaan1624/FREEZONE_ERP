@@ -158,7 +158,7 @@ export default function Clientes() {
           </div>
         </div>
         <div className="flex w-full items-center gap-2 md:ml-auto md:w-auto">
-          <div className="relative min-w-0 flex-1 md:flex-none">
+          <div data-tour="clientes-buscar" className="relative min-w-0 flex-1 md:flex-none">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-500" />
             <input
               value={busca}
@@ -171,6 +171,7 @@ export default function Clientes() {
             />
           </div>
           <button
+            data-tour="clientes-nuevo"
             onClick={() => setForm({ ...VACIO })}
             className="boton boton-ink"
           >

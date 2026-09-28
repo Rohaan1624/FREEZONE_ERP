@@ -155,7 +155,7 @@ export default function Resumen() {
 
       {/* items-start, no items-stretch: cada bloque mide lo que mide. */}
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.78fr)]">
-        <section className={cn("p-6", hoja)}>
+        <section data-tour="resumen-ingresos" className={cn("p-6", hoja)}>
           <div className="mb-4 flex flex-wrap items-start gap-4">
             <div>
               <div className={rotulo}>Ingresos facturados</div>
@@ -319,7 +319,7 @@ export default function Resumen() {
             con lo que falta cobrar es la lectura que de verdad importa. */}
         <div className="flex flex-col gap-3">
           {/* Stat tiles — no plots, so no hover layer needed */}
-          <div className="grid grid-cols-2 gap-3">
+          <div data-tour="resumen-indicadores" className="grid grid-cols-2 gap-3">
             {indicadores.map(({ icon: Icon, k, v, sub, aviso }) => (
               <div key={k} className={cn("flex flex-col gap-0.5 p-4", hoja)}>
                 {/* El icono va en su propio cuadro, pero EN LÍNEA con el
@@ -341,7 +341,7 @@ export default function Resumen() {
             ))}
           </div>
 
-          <section className={cn("overflow-hidden", hoja)}>
+          <section data-tour="resumen-cobrar" className={cn("overflow-hidden", hoja)}>
           <div className="registro-cab flex items-center gap-3 px-5 py-3">
             <h4 className="m-0 text-[15px] font-semibold">Cuentas por cobrar</h4>
             <span className="text-[15px] font-semibold tabular-nums">{usd(porCobrar)}</span>
@@ -385,7 +385,7 @@ export default function Resumen() {
 
       {/* Ancho completo: es una lista con nombre, SKU, unidades e importe, y
           apretada en media columna el nombre se truncaba a la mitad. */}
-      <section className={cn("overflow-hidden", hoja)}>
+      <section data-tour="resumen-top" className={cn("overflow-hidden", hoja)}>
         <div className="registro-cab flex items-center gap-3 px-5 py-3">
           <h4 className="m-0 text-[15px] font-semibold">SKU más vendidos</h4>
           <Link
