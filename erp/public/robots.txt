@@ -2,9 +2,8 @@
 # sesión, así que no hay nada que mostrar en un buscador.
 User-agent: *
 Allow: /$
-Allow: /registro
+Disallow: /registro
 Disallow: /login
-Disallow: /nueva-clave
 Disallow: /resumen
 Disallow: /facturas
 Disallow: /clientes

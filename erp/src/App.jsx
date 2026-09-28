@@ -8,7 +8,6 @@ import Login from "@/pages/login";
 import Registro from "@/pages/registro";
 import Facturas from "@/pages/facturas";
 import FacturaForm from "@/pages/factura-form";
-import NuevaClave from "@/pages/nueva-clave";
 import Empresa from "@/pages/empresa";
 import Clientes from "@/pages/clientes";
 import Cliente from "@/pages/cliente";
@@ -54,8 +53,6 @@ export const router = createBrowserRouter([
         children: [
           { path: "/login", element: <Login /> },
           { path: "/registro", element: <Registro /> },
-          // Target of the password-reset email link
-          { path: "/nueva-clave", element: <NuevaClave /> },
 
           // AppShell redirects to /login when there is no session
           {

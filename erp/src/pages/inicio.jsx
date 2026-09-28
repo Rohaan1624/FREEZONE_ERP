@@ -73,7 +73,7 @@ function Marco({ children, className }) {
 function BotonPrincipal({ className }) {
   return (
     <Link
-      to="/registro"
+      to="/login"
       className={cn(
         "inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-white px-5 text-[15px] font-medium text-neutral-950 transition-colors hover:bg-white/85",
         className
@@ -107,17 +107,12 @@ export default function Inicio() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            {/* Un solo botón: con Google, entrar y crear la cuenta son lo mismo. */}
             <Link
               to="/login"
-              className="rounded-[10px] px-3 py-2 text-[14px] text-white/70 transition-colors hover:text-white"
-            >
-              Entrar
-            </Link>
-            <Link
-              to="/registro"
               className="rounded-[10px] bg-white px-3.5 py-2 text-[14px] font-medium text-neutral-950 transition-colors hover:bg-white/85"
             >
-              Crear cuenta
+              Entrar
             </Link>
           </div>
         </Marco>
@@ -147,12 +142,6 @@ export default function Inicio() {
 
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <BotonPrincipal />
-            <Link
-              to="/login"
-              className="inline-flex h-11 items-center rounded-[10px] border border-white/15 px-5 text-[15px] font-medium text-white/85 transition-colors hover:bg-white/5"
-            >
-              Ya tengo cuenta
-            </Link>
           </div>
         </Marco>
 

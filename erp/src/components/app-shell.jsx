@@ -3,9 +3,10 @@ import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom"
 import { ChartLine, Receipt, Users, Package, Truck, Sparkles, LogOut, Settings } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { useAuth, RUTA_NUEVA_CLAVE } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { ASISTENTE_ACTIVO } from "@/lib/banderas"
+import { NombreEmpresa, NOMBRE_GENERICO } from "@/components/nombre-empresa"
 
 // El asistente solo aparece si su bandera está encendida. Enseñar la pestaña
 // con la función apagada llevaría a una pantalla que redirige sola, que se lee
@@ -20,7 +21,7 @@ const NAV = [
 ]
 
 export function AppShell() {
-  const { session, cargando, recuperando, usuario, salir } = useAuth()
+  const { session, cargando, usuario, salir } = useAuth()
   const [empresa, setEmpresa] = React.useState(null)
   const location = useLocation()
 
@@ -36,10 +37,6 @@ export function AppShell() {
   }, [session])
 
   if (cargando) return null
-  // A recovery link produces a valid session, so this guard has to come first —
-  // otherwise the user lands in the app with their OLD password still working
-  // and never sees the change-password screen.
-  if (recuperando) return <Navigate to={RUTA_NUEVA_CLAVE} replace />
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />
 
   const nombre = empresa?.name ?? "Mi Empresa"
@@ -176,6 +173,11 @@ export function AppShell() {
           </div>
         </div>
       </div>
+
+      {/* Primera entrada con Google: la empresa aún no tiene nombre. */}
+      {empresa?.name === NOMBRE_GENERICO && (
+        <NombreEmpresa empresa={empresa} onGuardado={setEmpresa} />
+      )}
 
       {/* En el teléfono el menú va abajo. Queda FUERA de la región que
           desplaza, así que siempre está a la vista. */}
