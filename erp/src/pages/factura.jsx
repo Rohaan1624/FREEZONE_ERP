@@ -364,6 +364,11 @@ export default function Factura() {
                   {l.product?.sku && (
                     <div className="text-[11px] text-neutral-700 tabular-nums">{l.product.sku}</div>
                   )}
+                  {(l.origin || l.composition) && (
+                    <div className="truncate text-[11px] text-neutral-700">
+                      {[l.origin && `Origen: ${l.origin}`, l.composition].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right text-sm tabular-nums">
                   {l.bultos == null ? "—" : l.bultos}

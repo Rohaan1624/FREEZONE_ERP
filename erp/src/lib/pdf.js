@@ -20,7 +20,7 @@ import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 
 import { usd, n2, n0, fecha } from "./format.js"
-import { nombreDoc, direccionDoc, paisDoc } from "./documento"
+import { nombreDoc, direccionDoc, paisDoc, columnasOpcionales } from "./documento"
 import { mul, sumar, centavos } from "./dinero.js"
 import { costeo } from "./costeo.js"
 
@@ -121,7 +121,7 @@ export function pdfFactura(inv, empresa) {
   const doc = new jsPDF({ unit: "mm", format: "letter" })
   const emp = empresa ?? {}
   const cli = inv.client ?? {}
-  const { mercancia, cargos, importe, totalBultos, totalPeso, subtotal } = datosComunes(inv)
+  const { lineas, mercancia, cargos, importe, totalBultos, totalPeso, subtotal } = datosComunes(inv)
   const ancho = doc.internal.pageSize.getWidth()
   let y = M
 
@@ -156,27 +156,31 @@ export function pdfFactura(inv, empresa) {
 
   y += 3
 
+  // Cada columna lleva su título, su celda y su estilo juntos. Origen y
+  // Composición entran solo si algún renglón las trae (columnasOpcionales,
+  // la misma regla que la vista de impresión), y como el estilo viaja con la
+  // columna, insertarlas no corre el de las demás.
+  const opcionales = columnasOpcionales(lineas)
+  const columnas = [
+    { t: "BULTOS", v: (l) => (l.bultos == null ? "" : n0(l.bultos)), e: { halign: "center", cellWidth: 20 } },
+    { t: "REFERENCIA", v: (l) => texto(l.product?.sku) },
+    { t: "DESCRIPCIÓN", v: (l) => etiqueta(l) },
+    ...(opcionales.origen ? [{ t: "ORIGEN", v: (l) => texto(l.origin) }] : []),
+    ...(opcionales.composicion ? [{ t: "COMPOSICIÓN", v: (l) => texto(l.composition) }] : []),
+    { t: "CANTIDAD", v: (l) => cantidad(l), e: { cellWidth: 26 } },
+    { t: "PRECIO", v: (l) => usd(l.unit_price), e: { halign: "right", cellWidth: 24 } },
+    { t: "TOTAL", v: (l) => usd(importe(l)), e: { halign: "right", cellWidth: 26 } },
+  ]
+
   autoTable(doc, {
     startY: y,
-    head: [["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"]],
+    head: [columnas.map((c) => c.t)],
     // Solo mercancía: los cargos van desglosados debajo del subtotal.
-    body: mercancia.map((l) => [
-      l.bultos == null ? "" : n0(l.bultos),
-      texto(l.product?.sku),
-      etiqueta(l),
-      cantidad(l),
-      usd(l.unit_price),
-      usd(importe(l)),
-    ]),
+    body: mercancia.map((l) => columnas.map((c) => c.v(l))),
     margin: { left: M, right: M },
     styles: { font: "helvetica", fontSize: 9, lineColor: 0, lineWidth: 0.25, textColor: 0 },
     headStyles: { fillColor: false, textColor: 0, fontStyle: "bold", halign: "center" },
-    columnStyles: {
-      0: { halign: "center", cellWidth: 20 },
-      3: { cellWidth: 26 },
-      4: { halign: "right", cellWidth: 24 },
-      5: { halign: "right", cellWidth: 26 },
-    },
+    columnStyles: Object.fromEntries(columnas.map((c, i) => [i, c.e ?? {}])),
   })
 
   y = doc.lastAutoTable.finalY + 5

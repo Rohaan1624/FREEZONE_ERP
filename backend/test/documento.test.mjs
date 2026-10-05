@@ -1,4 +1,4 @@
-import { prueba, assert, ID, cargo } from "./ayuda.mjs"
+import { prueba, assert, ID, cargo, linea, miscelaneo } from "./ayuda.mjs"
 
 /**
  * EL DOCUMENTO: folio, fechas y lo que se imprime
@@ -396,4 +396,72 @@ prueba("p_lines tiene que ser un arreglo", async (db) => {
       }),
     /must be a JSON array/
   )
+})
+
+/* ------------------------------------------- origen y composición -- */
+
+const renglonesDe = (db, id) =>
+  db.uno(
+    `select json_agg(json_build_object('type', type, 'origin', origin, 'composition', composition)
+                     order by type) as r
+       from public.transaction where invoice_id = $1`,
+    [id]
+  ).then((f) => f.r)
+
+prueba("origen y composición se guardan en productos y misceláneos", async (db) => {
+  const id = await db.rpc("create_invoice", {
+    p_client_id: ID.clienteUno,
+    p_lines: [
+      linea(ID.suelto, 2, 4, { origin: "China", composition: "100% algodón" }),
+      { ...miscelaneo("Muestra", 1, "3.00"), origin: "  India  ", composition: "" },
+    ],
+    p_status: "draft",
+  })
+  const r = await renglonesDe(db, id)
+  const prod = r.find((x) => x.type === "product")
+  const misc = r.find((x) => x.type === "miscellaneous")
+  assert.equal(prod.origin, "China")
+  assert.equal(prod.composition, "100% algodón")
+  assert.equal(misc.origin, "India", "no se recortaron los espacios")
+  assert.equal(misc.composition, null, "un campo vacío debe quedar en null")
+})
+
+prueba("un cargo nunca lleva origen ni composición, aunque se manden", async (db) => {
+  const id = await db.rpc("create_invoice", {
+    p_client_id: ID.clienteUno,
+    p_lines: [{ ...cargo("Flete", "50.00"), origin: "China", composition: "acero" }],
+    p_status: "draft",
+  })
+  const [r] = await renglonesDe(db, id)
+  assert.equal(r.origin, null)
+  assert.equal(r.composition, null)
+})
+
+prueba("la base rechaza un cargo con origen escrito a mano", async (db) => {
+  const id = await db.rpc("create_invoice", {
+    p_client_id: ID.clienteUno,
+    p_lines: [cargo("Flete", "50.00")],
+    p_status: "draft",
+  })
+  // Como dueño de la base (el rol por defecto de estas pruebas): así lo que
+  // salta es la regla de la tabla y no la falta de permisos de la app.
+  await db.falla(
+    () => db.uno("update public.transaction set origin = 'China' where invoice_id = $1 returning id", [id]),
+    /transaction_charge_blank/
+  )
+})
+
+prueba("editar la factura reemplaza origen y composición, y los puede borrar", async (db) => {
+  const id = await db.rpc("create_invoice", {
+    p_client_id: ID.clienteUno,
+    p_lines: [linea(ID.suelto, 1, 4, { origin: "China", composition: "plástico" })],
+    p_status: "draft",
+  })
+  await db.rpc("update_invoice", {
+    p_invoice_id: id,
+    p_lines: [linea(ID.suelto, 1, 4, { origin: "Vietnam" })],
+  })
+  const [r] = await renglonesDe(db, id)
+  assert.equal(r.origin, "Vietnam")
+  assert.equal(r.composition, null, "la composición omitida debía quedar vacía")
 })

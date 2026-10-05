@@ -169,6 +169,7 @@ const ARCHIVOS = [
   "migration-004-asistente.sql",
   "migration-005-datos-impresos.sql",
   "migration-006-direccion-congelada.sql",
+  "migration-009-origen-composicion.sql",
   "functions.sql",
 ]
 

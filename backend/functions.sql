@@ -335,7 +335,7 @@ begin
 
     insert into public.transaction
       (invoice_id, product_id, description, type, qty, bultos, unit,
-       unit_price, user_id)
+       unit_price, origin, composition, user_id)
     values
       (v_invoice_id,
        v_product_id,
@@ -348,6 +348,11 @@ begin
        case when v_type = 'charge' then null
             else nullif(v_line ->> 'unit', '') end,
        (v_line ->> 'unit_price')::numeric,
+       -- Solo impresos y opcionales; un cargo no los lleva (migration-009).
+       case when v_type = 'charge' then null
+            else nullif(trim(v_line ->> 'origin'), '') end,
+       case when v_type = 'charge' then null
+            else nullif(trim(v_line ->> 'composition'), '') end,
        v_uid);
   end loop;
 
@@ -545,7 +550,7 @@ begin
 
     insert into public.transaction
       (invoice_id, product_id, description, type, qty, bultos, unit,
-       unit_price, user_id)
+       unit_price, origin, composition, user_id)
     values
       (p_invoice_id,
        v_product_id,
@@ -557,6 +562,11 @@ begin
        case when v_type = 'charge' then null
             else nullif(v_line ->> 'unit', '') end,
        (v_line ->> 'unit_price')::numeric,
+       -- Solo impresos y opcionales; un cargo no los lleva (migration-009).
+       case when v_type = 'charge' then null
+            else nullif(trim(v_line ->> 'origin'), '') end,
+       case when v_type = 'charge' then null
+            else nullif(trim(v_line ->> 'composition'), '') end,
        v_uid);
   end loop;
 

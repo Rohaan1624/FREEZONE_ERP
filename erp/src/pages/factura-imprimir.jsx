@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { usd, n2, n0, fecha } from "@/lib/format"
 import { mul, sumar, centavos } from "@/lib/dinero"
-import { nombreDoc, direccionDoc, paisDoc } from "@/lib/documento"
+import { nombreDoc, direccionDoc, paisDoc, columnasOpcionales } from "@/lib/documento"
 
 /**
  * Printable documents. No PDF library: the browser's own print dialog produces
@@ -84,6 +84,19 @@ export default function FacturaImprimir() {
   // never reach the packing list, which the warehouse checks boxes against.
   const mercancia = lineas.filter((l) => l.type !== "charge")
   const cargos = lineas.filter((l) => l.type === "charge")
+
+  // Origen y Composición solo abren columna si algún renglón las trae.
+  const opcionales = columnasOpcionales(lineas)
+  const encabezados = [
+    "BULTOS",
+    "REFERENCIA",
+    "DESCRIPCIÓN",
+    ...(opcionales.origen ? ["ORIGEN"] : []),
+    ...(opcionales.composicion ? ["COMPOSICIÓN"] : []),
+    "CANTIDAD",
+    "PRECIO",
+    "TOTAL",
+  ]
 
   const importe = (l) => centavos(mul(l.qty, l.unit_price))
   const totalBultos = lineas.reduce((t, l) => t + Number(l.bultos ?? 0), 0)
@@ -230,19 +243,17 @@ export default function FacturaImprimir() {
               <table className="mt-5 w-full border-collapse text-[12px]">
                 <thead>
                   <tr>
-                    {["BULTOS", "REFERENCIA", "DESCRIPCIÓN", "CANTIDAD", "PRECIO", "TOTAL"].map(
-                      (h, i) => (
-                        <th
-                          key={h}
-                          className={cn(
-                            "border border-ink px-2 py-1.5 text-center font-bold",
-                            i >= 4 && "w-[80px]"
-                          )}
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {encabezados.map((h, i) => (
+                      <th
+                        key={h}
+                        className={cn(
+                          "border border-ink px-2 py-1.5 text-center font-bold",
+                          i >= encabezados.length - 2 && "w-[80px]"
+                        )}
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -255,6 +266,12 @@ export default function FacturaImprimir() {
                         {l.product?.sku ?? ""}
                       </td>
                       <td className="border border-ink px-2 py-1.5">{etiqueta(l)}</td>
+                      {opcionales.origen && (
+                        <td className="border border-ink px-2 py-1.5">{l.origin ?? ""}</td>
+                      )}
+                      {opcionales.composicion && (
+                        <td className="border border-ink px-2 py-1.5">{l.composition ?? ""}</td>
+                      )}
                       <td className="border border-ink px-2 py-1.5 tabular-nums">{cantidad(l)}</td>
                       <td className="border border-ink px-2 py-1.5 text-right tabular-nums">
                         {usd(l.unit_price)}

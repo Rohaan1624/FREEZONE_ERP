@@ -41,6 +41,7 @@ import {
   desdeFilas,
   llevaBultos,
   convierteBultos,
+  llevaOrigen,
 } from "@/lib/lineas"
 
 const TABS = [
@@ -99,6 +100,8 @@ const CELDA = {
 }
 // Rótulo sobre cada campo, solo en el teléfono: allí no hay fila de encabezado.
 const ROTULO_MOVIL = "rotulo mb-1 block md:hidden"
+// De dónde suele venir la mercancía que pasa por la Zona Libre.
+const ORIGENES = ["China", "India", "Vietnam", "Turquía", "Taiwán", "Corea del Sur", "Japón", "Indonesia", "Tailandia", "Estados Unidos", "Panamá"]
 const TH = "rotulo"
 const SUB = "block text-[9px] normal-case tracking-normal"
 
@@ -884,6 +887,30 @@ export default function FacturaForm() {
                     >
                       <Trash2 className="size-4" />
                     </button>
+
+                    {/* Origen y composición: opcionales, solo impresos. Van en
+                        su propio renglón a lo ancho para no apretar las
+                        cifras; la factura abre la columna solo si alguien
+                        la llena (columnasOpcionales en lib/documento.js). */}
+                    {llevaOrigen(l.type) && (
+                      <div className="col-span-full grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+                        <input
+                          value={l.origin ?? ""}
+                          onChange={(e) => set(l.id, { origin: e.target.value })}
+                          list="origenes-erp"
+                          placeholder="Origen (opcional)"
+                          aria-label="Origen"
+                          className={cn(campo, "text-[13px]")}
+                        />
+                        <input
+                          value={l.composition ?? ""}
+                          onChange={(e) => set(l.id, { composition: e.target.value })}
+                          placeholder="Composición (opcional)"
+                          aria-label="Composición"
+                          className={cn(campo, "text-[13px]")}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -892,6 +919,12 @@ export default function FacturaForm() {
             <datalist id="unidades-erp">
               {UNIDADES.map((u) => (
                 <option key={u} value={u} />
+              ))}
+            </datalist>
+            {/* Sugerencias, no una lista cerrada: se puede escribir cualquier país. */}
+            <datalist id="origenes-erp">
+              {ORIGENES.map((o) => (
+                <option key={o} value={o} />
               ))}
             </datalist>
           </section>

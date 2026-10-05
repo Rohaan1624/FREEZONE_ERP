@@ -37,6 +37,13 @@ export const llevaBultos = (type) => type !== "charge"
  */
 export const convierteBultos = (type) => type === "product"
 
+/**
+ * Origen y composición: opcionales, solo impresos, por renglón. Los llevan
+ * productos y misceláneos; un cargo es dinero y no tiene de dónde venir ni de
+ * qué estar hecho (la base lo exige, migration-009).
+ */
+export const llevaOrigen = (type) => type !== "charge"
+
 const numero = (v) => {
   const n = parseFloat(String(v ?? "").replace(/[^0-9.-]/g, ""))
   return Number.isFinite(n) ? n : 0
@@ -67,6 +74,8 @@ export function lineaDeProducto(p) {
     unit: p.unit || "PZA",
     description: "",
     unit_price: p.sale_price ?? "",
+    origin: "",
+    composition: "",
   }
 }
 
@@ -85,6 +94,8 @@ export function lineaSuelta(type) {
     unit: llevaBultos(type) ? "PZA" : "",
     description: "",
     unit_price: "",
+    origin: "",
+    composition: "",
   }
 }
 
@@ -197,6 +208,10 @@ export function aPayload(lineas) {
     // Sent as an exact decimal string; PostgREST casts straight to numeric(12,2)
     // with no float hop in between.
     unit_price: M(l.unit_price).toFixed(2),
+    // En blanco viaja null, no "": así la factura sabe que ese renglón no
+    // abre la columna.
+    origin: llevaOrigen(l.type) ? String(l.origin ?? "").trim() || null : null,
+    composition: llevaOrigen(l.type) ? String(l.composition ?? "").trim() || null : null,
   }))
 }
 
@@ -226,6 +241,8 @@ export function desdeFilas(filas, productos = []) {
       unit: r.unit ?? "",
       description: r.description ?? "",
       unit_price: r.unit_price ?? "",
+      origin: r.origin ?? "",
+      composition: r.composition ?? "",
     }
   })
 }

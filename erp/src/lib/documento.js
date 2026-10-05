@@ -36,3 +36,17 @@ export const direccionDoc = (inv, cli = {}) =>
   inv.bill_to_address ?? inv.client_address ?? cli.address
 export const paisDoc = (inv, cli = {}) =>
   inv.bill_to_country ?? inv.client_country ?? cli.country
+
+/**
+ * Qué columnas opcionales abre la tabla impresa: Origen y Composición, cada
+ * una por su cuenta, solo si ALGÚN renglón la trae. Si nadie las usa, la
+ * factura queda igual que siempre — no aparecen dos columnas vacías.
+ *
+ * La comparten la vista de impresión y el PDF, para que el papel y el archivo
+ * no puedan discrepar.
+ */
+const lleno = (v) => String(v ?? "").trim() !== ""
+export const columnasOpcionales = (renglones = []) => ({
+  origen: renglones.some((r) => r.type !== "charge" && lleno(r.origin)),
+  composicion: renglones.some((r) => r.type !== "charge" && lleno(r.composition)),
+})

@@ -286,6 +286,8 @@ test("payload matches what create_invoice expects", () => {
     // an exact decimal STRING: PostgREST casts it to numeric(12,2) directly,
     // with no float hop on the way
     unit_price: "10.00",
+    origin: null,
+    composition: null,
   })
   assert.deepEqual(cargo, {
     type: "charge",
@@ -295,6 +297,8 @@ test("payload matches what create_invoice expects", () => {
     bultos: null,
     unit: null,
     unit_price: "300.00",
+    origin: null,
+    composition: null,
   })
 })
 
@@ -325,4 +329,37 @@ test("saved rows come back as editable lines with bultos intact", () => {
 test("old rows saved before bultos existed get it derived on the way in", () => {
   const [l] = desdeFilas([{ type: "product", product_id: "p1", qty: 24, unit_price: 10 }], [CAJA])
   assert.equal(l.bultos, 2)
+})
+
+/* ------------------------------------------------ origen y composición */
+
+test("origen y composición viajan recortados, y en blanco viajan como null", () => {
+  const prod = { ...lineaDeProducto(CAJA), origin: "  China ", composition: "" }
+  const misc = { ...sincroniza(lineaSuelta("miscellaneous"), { description: "Muestra", unit_price: "1" }), composition: "acero" }
+  const [p, m] = aPayload([prod, misc])
+  assert.equal(p.origin, "China")
+  assert.equal(p.composition, null)
+  assert.equal(m.origin, null)
+  assert.equal(m.composition, "acero")
+})
+
+test("un cargo manda origen y composición en null aunque se hayan escrito", () => {
+  const c = { ...sincroniza(lineaSuelta("charge"), { description: "Flete", unit_price: "5" }), origin: "China", composition: "x" }
+  const [p] = aPayload([c])
+  assert.equal(p.origin, null)
+  assert.equal(p.composition, null)
+})
+
+test("al reabrir una factura vuelven origen y composición", () => {
+  const [l] = desdeFilas(
+    [{ type: "product", product_id: "p1", qty: 12, bultos: 1, unit_price: 10, origin: "Vietnam", composition: "plástico" }],
+    [CAJA]
+  )
+  assert.equal(l.origin, "Vietnam")
+  assert.equal(l.composition, "plástico")
+})
+
+test("una línea nueva empieza con origen y composición vacíos", () => {
+  assert.equal(lineaDeProducto(CAJA).origin, "")
+  assert.equal(lineaSuelta("miscellaneous").composition, "")
 })
