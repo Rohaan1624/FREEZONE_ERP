@@ -193,29 +193,35 @@ export function pdfFactura(inv, empresa) {
   doc.setFont("helvetica", "normal").text(n0(totalBultos), M + 24, y)
   doc.setFont("helvetica", "bold").text("Total Peso:", M + 45, y)
   doc.setFont("helvetica", "normal").text(n2(totalPeso), M + 68, y)
-  doc.setFont("helvetica", "bold").text("Subtotal:", ancho - M - 40, y)
-  doc.setFont("helvetica", "normal").text(usd(subtotal), ancho - M, y, { align: "right" })
+  // Subtotal, cada cargo y el total comparten UNA columna de rótulos y una de
+  // importes, como en la vista de impresión: antes «Subtotal:» arrancaba en
+  // otro punto que los cargos y el total iba alineado por su cuenta, y la
+  // columna se veía torcida.
+  const rotuloX = ancho - M - 70
+  const importeX = ancho - M
+  doc.setFont("helvetica", "bold").text("Subtotal:", rotuloX, y)
+  doc.setFont("helvetica", "normal").text(usd(subtotal), importeX, y, { align: "right" })
 
   // Cada cargo, con su concepto, entre el subtotal y el total. Van aquí y no
   // en la tabla porque no son mercancía: no llevan bultos, referencia ni
   // cantidad, y el cliente espera verlos como flete/seguro/manejo sumándose
   // aparte a lo que compró.
-  const rotuloX = ancho - M - 70
   for (const c of cargos) {
     y += 5.5
     const nombre = doc.splitTextToSize(texto(c.description) || "Cargo", 40)[0]
     doc.setFont("helvetica", "normal").text(`${nombre}:`, rotuloX, y)
-    doc.text(usd(importe(c)), ancho - M, y, { align: "right" })
+    doc.text(usd(importe(c)), importeX, y, { align: "right" })
   }
 
   y += 4
   if (cargos.length) {
-    doc.setLineWidth(0.3).line(rotuloX, y, ancho - M, y)
+    doc.setLineWidth(0.3).line(rotuloX, y, importeX, y)
     y += 3
   }
 
   doc.setFont("helvetica", "bold").setFontSize(11)
-  doc.text(`TOTAL: ${usd(inv.total)}`, ancho - M, y + 3, { align: "right" })
+  doc.text("TOTAL:", rotuloX, y + 3)
+  doc.text(usd(inv.total), importeX, y + 3, { align: "right" })
   y += 3
 
   if (inv.notes) {
