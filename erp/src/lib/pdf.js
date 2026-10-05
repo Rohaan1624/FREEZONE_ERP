@@ -179,7 +179,8 @@ export function pdfFactura(inv, empresa) {
     body: mercancia.map((l) => columnas.map((c) => c.v(l))),
     margin: { left: M, right: M },
     styles: { font: "helvetica", fontSize: 9, lineColor: 0, lineWidth: 0.25, textColor: 0 },
-    headStyles: { fillColor: false, textColor: 0, fontStyle: "bold", halign: "center" },
+    // Títulos un punto más chicos que las celdas, igual que en pantalla.
+    headStyles: { fillColor: false, textColor: 0, fontStyle: "bold", halign: "center", fontSize: 8 },
     columnStyles: Object.fromEntries(columnas.map((c, i) => [i, c.e ?? {}])),
   })
 

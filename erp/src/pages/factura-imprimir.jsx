@@ -247,7 +247,9 @@ export default function FacturaImprimir() {
                       <th
                         key={h}
                         className={cn(
-                          "border border-ink px-2 py-1.5 text-center font-bold",
+                          // 1px menos que las celdas: con Origen y Composición
+                          // los títulos largos se partían en dos renglones.
+                          "border border-ink px-2 py-1.5 text-center text-[11px] font-bold",
                           i >= encabezados.length - 2 && "w-[80px]"
                         )}
                       >
